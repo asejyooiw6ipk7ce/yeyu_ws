@@ -1,9 +1,0 @@
-/home/ktel/yeyu_ws_temp/build/yeyu_navigation2/CMakeFiles/uninstall.dir
-/home/ktel/yeyu_ws_temp/build/yeyu_navigation2/CMakeFiles/yeyu_navigation2_uninstall.dir
-/home/ktel/yeyu_ws_temp/build/yeyu_navigation2/CMakeFiles/test.dir
-/home/ktel/yeyu_ws_temp/build/yeyu_navigation2/CMakeFiles/edit_cache.dir
-/home/ktel/yeyu_ws_temp/build/yeyu_navigation2/CMakeFiles/rebuild_cache.dir
-/home/ktel/yeyu_ws_temp/build/yeyu_navigation2/CMakeFiles/list_install_components.dir
-/home/ktel/yeyu_ws_temp/build/yeyu_navigation2/CMakeFiles/install.dir
-/home/ktel/yeyu_ws_temp/build/yeyu_navigation2/CMakeFiles/install/local.dir
-/home/ktel/yeyu_ws_temp/build/yeyu_navigation2/CMakeFiles/install/strip.dir

@@ -1,9 +1,0 @@
-/home/ktel/yeyu_ws_temp/build/yeyu_bringup/CMakeFiles/uninstall.dir
-/home/ktel/yeyu_ws_temp/build/yeyu_bringup/CMakeFiles/yeyu_bringup_uninstall.dir
-/home/ktel/yeyu_ws_temp/build/yeyu_bringup/CMakeFiles/test.dir
-/home/ktel/yeyu_ws_temp/build/yeyu_bringup/CMakeFiles/edit_cache.dir
-/home/ktel/yeyu_ws_temp/build/yeyu_bringup/CMakeFiles/rebuild_cache.dir
-/home/ktel/yeyu_ws_temp/build/yeyu_bringup/CMakeFiles/list_install_components.dir
-/home/ktel/yeyu_ws_temp/build/yeyu_bringup/CMakeFiles/install.dir
-/home/ktel/yeyu_ws_temp/build/yeyu_bringup/CMakeFiles/install/local.dir
-/home/ktel/yeyu_ws_temp/build/yeyu_bringup/CMakeFiles/install/strip.dir
