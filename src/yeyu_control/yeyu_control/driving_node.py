@@ -2,8 +2,10 @@ import math
 import os
 import yaml
 import rclpy
+import tf2_ros
 from rclpy.node import Node
 from rclpy.action import ActionClient
+from rclpy.duration import Duration
 from nav2_msgs.action import NavigateToPose
 from action_msgs.msg import GoalStatus
 from sensor_msgs.msg import Image, LaserScan
@@ -23,6 +25,9 @@ NAV_ARRIVAL_TRANSITIONS = {
 class DrivingNode(Node):
     def __init__(self):
         super().__init__('driving_node')
+
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
         # --- 1. waypoints 로드 ---
         wp_path = os.path.join(
@@ -52,6 +57,18 @@ class DrivingNode(Node):
         self.send_waypoint(self.waypoints[0])   # ①
 
     # ================= Nav2 제어 =================
+    def check_tf_and_start(self):
+        try:
+            self.tf_buffer.lookup_transform(
+                'map','base_footprint',
+                rclpy.time.Time(),
+                timeout=Duration(seconds=0.1)
+            )
+            self.get_logger().info('TF 안정화 확인됨 , 첫 웨이포인트 전송')
+            self.startup_timer.cancel()
+            self.send_waypoint(self.waypoints[0])
+        except Exception as e:
+            self.get_logger().info(f'TF 아직 준비 안 됨 재시도: {e}')
 
     def send_waypoint(self, wp):
         self.get_logger().info(f'[send_waypoint] target={wp}')
@@ -73,13 +90,15 @@ class DrivingNode(Node):
 
     def on_goal_response(self, future):
         goal_handle = future.result()
+        self.get_logger().info('[on_goal_response] callback 호출됨')   # 추가 ①
         if not goal_handle.accepted:
             self.get_logger().warn('경로 목표가 거부됨')
             return
-        self.get_logger().info('[on_goal_response] goal accepted!')
-        self.current_goal_handle = goal_handle          # ★ 취소하려면 이 핸들이 꼭 있어야 함
+        self.get_logger().info('[on_goal_response] goal accepted!')    # 추가 ②
+        self.current_goal_handle = goal_handle
         result_future = goal_handle.get_result_async()
         result_future.add_done_callback(self.on_nav_result)
+        self.get_logger().info('[on_goal_response] result callback 등록 완료')  # 추가 ③
 
     def pause_nav(self):
         if self.current_goal_handle is not None:
@@ -89,8 +108,10 @@ class DrivingNode(Node):
         self.send_waypoint(wp)
 
     def on_nav_result(self, future):
+        self.get_logger().info('[on_nav_result] callback 호출됨')   # 추가 ④
         result = future.result()
         status = result.status
+        self.get_logger().info(f'[on_nav_result] status={status}') 
 
         if status == GoalStatus.STATUS_SUCCEEDED:
                 next_mode = NAV_ARRIVAL_TRANSITIONS.get(self.mode)
