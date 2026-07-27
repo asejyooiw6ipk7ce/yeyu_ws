@@ -123,7 +123,7 @@ class DrivingNode(Node):
 
                     if self.mode == DrivingMode.NAV_TO_PARKING:
                         self.wp_index = 1
-                        self.send_waypoint(self.send_waypoint[self.wp_index])
+                        self.send_waypoint(self.waypoints[self.wp_index])
                 else:
                     # 지금 mode가 NAV_TO_* 계열이 아닌데 도착 콜백이 온 경우 (비정상 상황)
                     self.get_logger().warn(f'예상치 못한 도착 콜백, 현재 mode={self.mode.name}')
