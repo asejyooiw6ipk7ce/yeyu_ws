@@ -1,4 +1,5 @@
 import math
+import os
 import yaml
 import rclpy
 from rclpy.node import Node
@@ -9,7 +10,7 @@ from sensor_msgs.msg import Image, LaserScan
 from geometry_msgs.msg import Twist
 from std_msgs.msg import String
 from yeyu_msgs.msg import DrivingStatus
-from src.yeyu_node.yeyu_node.driving_mode import DrivingMode
+from yeyu_node.driving_mode import DrivingMode
 from ament_index_python.packages import get_package_share_directory
 
 NAV_ARRIVAL_TRANSITIONS = {
@@ -24,7 +25,11 @@ class DrivingNode(Node):
         super().__init__('driving_node')
 
         # --- 1. waypoints 로드 ---
-        wp_path = get_package_share_directory('yeyu_node') + '/config/waypoints.yaml'
+        wp_path = os.path.join(
+            get_package_share_directory('yeyu_waypoint_nav'),
+            'waypoints',
+            'waypoint1.yaml'
+        )
         with open(wp_path) as f:
             self.waypoints = yaml.safe_load(f)['waypoints']
         self.wp_index = 0 
@@ -36,8 +41,8 @@ class DrivingNode(Node):
         self.current_goal_handle = None
 
         # --- 3. 구독/발행 ---
-        self.create_subscription(LaserScan, '/scan', self.on_lidar, 10)
-        self.create_subscription(Image, '/camera/image_raw', self.on_camera, 10)
+        # self.create_subscription(LaserScan, '/scan', self.on_lidar, 10)
+        # self.create_subscription(Image, '/camera/image_raw', self.on_camera, 10)
         self.pub_led = self.create_publisher(String, '/led_command', 10)
         self.pub_cmd = self.create_publisher(Twist, '/cmd_vel', 10)
         self.pub_status = self.create_publisher(DrivingStatus, '/driving_status', 10)
@@ -49,6 +54,9 @@ class DrivingNode(Node):
     # ================= Nav2 제어 =================
 
     def send_waypoint(self, wp):
+        self.get_logger().info(f'[send_waypoint] target={wp}')
+        self.nav_client.wait_for_server()
+        self.get_logger().info('[send_waypoint] action server ready, sending goal')
         self.nav_client.wait_for_server()
         goal = NavigateToPose.Goal()
         goal.pose.header.frame_id = 'map'
@@ -69,7 +77,7 @@ class DrivingNode(Node):
             self.get_logger().warn('경로 목표가 거부됨')
             return
         self.current_goal_handle = goal_handle          # ★ 취소하려면 이 핸들이 꼭 있어야 함
-        result_future = goal_handle.get_result_future()
+        result_future = goal_handle.get_result_async()
         result_future.add_done_callback(self.on_nav_result)
 
     def pause_nav(self):
@@ -105,58 +113,58 @@ class DrivingNode(Node):
             # STATUS_UNKNOWN 등 예상 밖의 상태
             self.get_logger().warn(f'예상치 못한 nav 상태: {status}')                  # ④
 
-    # ================= LiDAR: 장애물 감지 =================
+    # # ================= LiDAR: 장애물 감지 =================
 
-    def on_lidar(self, msg):
-        front_slice = msg.ranges[len(msg.ranges)//2 - 15 : len(msg.ranges)//2 + 15]
-        if min(front_slice) < 0.20 and self.mode not in (
-                DrivingMode.OBSTACLE_RESPONSE, DrivingMode.PARKING,
-                DrivingMode.SIGNAL_WAIT, DrivingMode.ACCEL_ZONE):
-            self.pending_resume_wp = self.waypoints[self.wp_index]     # 복귀 지점 기억
-            self.pause_nav()                                            # ②
-            self.mode = DrivingMode.OBSTACLE_RESPONSE
-            self.pub_led.publish(String(data='ON'))
-            self.create_timer(3.0, self.on_led_blink_ready)
+    # def on_lidar(self, msg):
+    #     front_slice = msg.ranges[len(msg.ranges)//2 - 15 : len(msg.ranges)//2 + 15]
+    #     if min(front_slice) < 0.20 and self.mode not in (
+    #             DrivingMode.OBSTACLE_RESPONSE, DrivingMode.PARKING,
+    #             DrivingMode.SIGNAL_WAIT, DrivingMode.ACCEL_ZONE):
+    #         self.pending_resume_wp = self.waypoints[self.wp_index]     # 복귀 지점 기억
+    #         self.pause_nav()                                            # ②
+    #         self.mode = DrivingMode.OBSTACLE_RESPONSE
+    #         self.pub_led.publish(String(data='ON'))
+    #         self.create_timer(3.0, self.on_led_blink_ready)
 
-    def on_led_blink_ready(self):
-        self.pub_led.publish(String(data='BLINK'))
-        # TODO: LiDAR 재검사로 장애물이 실제로 치워졌는지 확인 후에만 resume하는 게 안전
-        self.resume_nav(self.pending_resume_wp)                        # ③
-        self.mode = DrivingMode.NAV_TO_PARKING
+    # def on_led_blink_ready(self):
+    #     self.pub_led.publish(String(data='BLINK'))
+    #     # TODO: LiDAR 재검사로 장애물이 실제로 치워졌는지 확인 후에만 resume하는 게 안전
+    #     self.resume_nav(self.pending_resume_wp)                        # ③
+    #     self.mode = DrivingMode.NAV_TO_PARKING
 
-    # ================= 카메라: 직각주차/신호/가속 =================
+    # # ================= 카메라: 직각주차/신호/가속 =================
 
-    def on_camera(self, msg):
-        frame = msg  # TODO: cv_bridge로 실제 cv2 이미지 변환 필요
+    # def on_camera(self, msg):
+    #     frame = msg  # TODO: cv_bridge로 실제 cv2 이미지 변환 필요
 
-        if self.mode == DrivingMode.PARKING:
-            pose = detect_aruco_pose(frame)
-            if pose is not None and aligned(pose):
-                self.wp_index = 1
-                self.send_waypoint(self.waypoints[1])                  # ⑤
-                self.mode = DrivingMode.NAV_TO_SIGNAL
+    #     if self.mode == DrivingMode.PARKING:
+    #         pose = detect_aruco_pose(frame)
+    #         if pose is not None and aligned(pose):
+    #             self.wp_index = 1
+    #             self.send_waypoint(self.waypoints[1])                  # ⑤
+    #             self.mode = DrivingMode.NAV_TO_SIGNAL
 
-        elif self.mode == DrivingMode.NAV_TO_SIGNAL:
-            if reached_stop_line():                                     # ⑥
-                self.pause_nav()
-                self.mode = DrivingMode.SIGNAL_WAIT
+    #     elif self.mode == DrivingMode.NAV_TO_SIGNAL:
+    #         if reached_stop_line():                                     # ⑥
+    #             self.pause_nav()
+    #             self.mode = DrivingMode.SIGNAL_WAIT
 
-        elif self.mode == DrivingMode.SIGNAL_WAIT:
-            color = detect_signal_color(frame)
-            if color == 'green':
-                self.green_count += 1
-                if self.green_count >= 3:
-                    self.wp_index = 2
-                    self.resume_nav(self.waypoints[2])                  # ⑧
-                    self.mode = DrivingMode.NAV_TO_ACCEL
-                    self.green_count = 0
-            else:
-                self.green_count = 0
+    #     elif self.mode == DrivingMode.SIGNAL_WAIT:
+    #         color = detect_signal_color(frame)
+    #         if color == 'green':
+    #             self.green_count += 1
+    #             if self.green_count >= 3:
+    #                 self.wp_index = 2
+    #                 self.resume_nav(self.waypoints[2])                  # ⑧
+    #                 self.mode = DrivingMode.NAV_TO_ACCEL
+    #                 self.green_count = 0
+    #         else:
+    #             self.green_count = 0
 
-        elif self.mode == DrivingMode.NAV_TO_ACCEL:
-            if detect_speed_sign(frame):                                 # ⑨
-                self.mode = DrivingMode.ACCEL_ZONE
-                self.accelerate_to(0.2)
+    #     elif self.mode == DrivingMode.NAV_TO_ACCEL:
+    #         if detect_speed_sign(frame):                                 # ⑨
+    #             self.mode = DrivingMode.ACCEL_ZONE
+    #             self.accelerate_to(0.2)
 
 
 def main(args=None):
