@@ -114,7 +114,7 @@ def generate_launch_description():
         ),
 
         Node(
-            package='yeyu_node',
+            package='yeyu_control',
             executable='turtlebot3_ros',
             parameters=[
                 tb3_param_dir,

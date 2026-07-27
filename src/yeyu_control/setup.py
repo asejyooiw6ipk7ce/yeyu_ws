@@ -29,9 +29,9 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'driving_node = yeyu_node.driving_node:main',
-            'function_node = yeyu_node.function_node:main',
-            'main_node = yeyu_node.main_node:main',
+            'driving_node = yeyu_control.driving_node:main',
+            'function_node = yeyu_control.function_node:main',
+            'main_node = yeyu_control.main_node:main',
 
 
         ],
