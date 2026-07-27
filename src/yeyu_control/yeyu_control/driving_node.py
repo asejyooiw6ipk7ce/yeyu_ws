@@ -10,7 +10,7 @@ from sensor_msgs.msg import Image, LaserScan
 from geometry_msgs.msg import Twist
 from std_msgs.msg import String
 from yeyu_msgs.msg import DrivingStatus
-from yeyu_node.driving_mode import DrivingMode
+from yeyu_control.driving_mode import DrivingMode
 from ament_index_python.packages import get_package_share_directory
 
 NAV_ARRIVAL_TRANSITIONS = {
