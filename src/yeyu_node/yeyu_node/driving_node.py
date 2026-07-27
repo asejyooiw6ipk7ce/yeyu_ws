@@ -76,6 +76,7 @@ class DrivingNode(Node):
         if not goal_handle.accepted:
             self.get_logger().warn('경로 목표가 거부됨')
             return
+        self.get_logger().info('[on_goal_response] goal accepted!')
         self.current_goal_handle = goal_handle          # ★ 취소하려면 이 핸들이 꼭 있어야 함
         result_future = goal_handle.get_result_async()
         result_future.add_done_callback(self.on_nav_result)
