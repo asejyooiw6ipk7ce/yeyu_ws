@@ -12,6 +12,13 @@ import rclpy
 from rclpy.node import Node
 from rclpy.utilities import remove_ros_args
 from geometry_msgs.msg import PoseWithCovarianceStamped
+from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy
+
+qos = QoSProfile(
+    reliability=ReliabilityPolicy.RELIABLE,
+    durability=DurabilityPolicy.TRANSIENT_LOCAL,
+    depth=1
+)
 
 
 def quaternion_to_yaw(q):
@@ -43,7 +50,7 @@ class AmclWaypointRecorder(Node):
             PoseWithCovarianceStamped,
             "/amcl_pose",
             self.amcl_pose_callback,
-            10
+            qos
         )
 
         self.get_logger().info("AMCL waypoint recorder started.")
