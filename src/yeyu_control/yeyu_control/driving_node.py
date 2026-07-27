@@ -2,6 +2,10 @@ import math
 import os
 import yaml
 import rclpy
+from enum import Enum
+from dataclasses import dataclass
+from typing import Optional
+import cv2
 import tf2_ros
 from rclpy.node import Node
 from rclpy.action import ActionClient
@@ -21,6 +25,24 @@ NAV_ARRIVAL_TRANSITIONS = {
     DrivingMode.NAV_TO_ACCEL: DrivingMode.ACCEL_ZONE,
 }
 
+class ParkingState(Enum):
+    SEARCH_MARKER = 'SEARCH_MARKER'
+    ALIGN_AXIS = 'ALIGN_AXIS'
+    FINAL_APPROACH = 'FINAL_APPROACH'
+    DONE = 'DONE'
+    RECOVERY = 'RECOVERY'
+    FAILED = 'FAILED'
+ 
+ 
+@dataclass
+class ArucoObservation:
+    marker_id: int
+    x_m: float
+    y_m: float
+    z_m: float
+    bearing_rad: float
+    center_x: float
+    center_y: float
 
 class DrivingNode(Node):
     def __init__(self):
@@ -52,7 +74,39 @@ class DrivingNode(Node):
         self.pub_cmd = self.create_publisher(Twist, '/cmd_vel', 10)
         self.pub_status = self.create_publisher(DrivingStatus, '/driving_status', 10)
 
-        # --- 4. 초기 상태: 첫 웨이포인트(직각주차)로 출발 ---
+        # --- 4. T자 주차(ArUco) 파라미터 ---
+        self._declare_parking_parameters()
+        self._load_parking_parameters()
+ 
+        self.bridge = CvBridge()
+        self.camera_matrix: Optional[np.ndarray] = None
+        self.dist_coeffs: Optional[np.ndarray] = None
+        self.latest_observation: Optional[ArucoObservation] = None
+        self.last_marker_time = self.get_clock().now() - Duration(seconds=999.0)
+ 
+        self.parking_state = ParkingState.SEARCH_MARKER
+        self.parking_state_enter_time = self.get_clock().now()
+        self.parking_retry_count = 0
+        self.last_tracking_angular_z = 0.0
+ 
+        self.aruco_dict, self.aruco_params, self.aruco_detector = self._create_aruco_detector(
+            self.aruco_dictionary_name
+        )
+ 
+        sensor_qos = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            durability=DurabilityPolicy.VOLATILE,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1,
+        )
+ 
+        self.create_subscription(Image, self.image_topic, self.on_camera, sensor_qos)
+        self.create_subscription(CameraInfo, self.camera_info_topic, self.on_camera_info, sensor_qos)
+ 
+        # 주차 제어 루프 (10Hz). mode가 PARKING일 때만 실제로 동작함.
+        self.create_timer(1.0 / 10.0, self.parking_control_loop)
+ 
+        # --- 5. 초기 상태: 첫 웨이포인트(직각주차)로 출발 ---
         self.mode = DrivingMode.NAV_TO_PARKING
         self.send_waypoint(self.waypoints[0])   # ①
 
