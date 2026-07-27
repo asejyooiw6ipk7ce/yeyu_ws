@@ -2,22 +2,27 @@ import math
 import os
 import yaml
 import rclpy
-from enum import Enum
-from dataclasses import dataclass
-from typing import Optional
-import cv2
 import tf2_ros
 from rclpy.node import Node
 from rclpy.action import ActionClient
 from rclpy.duration import Duration
 from nav2_msgs.action import NavigateToPose
 from action_msgs.msg import GoalStatus
-from sensor_msgs.msg import Image, LaserScan
+from sensor_msgs.msg import Image, LaserScan, CameraInfo
 from geometry_msgs.msg import Twist
 from std_msgs.msg import String
 from yeyu_msgs.msg import DrivingStatus
 from yeyu_control.driving_mode import DrivingMode
 from ament_index_python.packages import get_package_share_directory
+
+from enum import Enum
+from dataclasses import dataclass
+from typing import Optional
+import cv2
+import numpy as np
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
+from cv_bridge import CvBridge, CvBridgeError
+
 
 NAV_ARRIVAL_TRANSITIONS = {
     DrivingMode.NAV_TO_START: DrivingMode.NAV_TO_PARKING,
@@ -110,6 +115,59 @@ class DrivingNode(Node):
         # --- 5. 초기 상태: 첫 웨이포인트(직각주차)로 출발 ---
         self.mode = DrivingMode.NAV_TO_PARKING
         self.send_waypoint(self.waypoints[0])   # ①
+
+       # ================= 파라미터 =================
+    def _declare_parking_parameters(self):
+        self.declare_parameter('image_topic', '/camera/image_raw')
+        self.declare_parameter('camera_info_topic', '/camera/camera_info')
+ 
+        self.declare_parameter('aruco_dictionary', 'DICT_4X4_50')
+        self.declare_parameter('target_marker_id', 4)          # 4번 칸 마커
+        self.declare_parameter('marker_size_m', 0.10)
+ 
+        # 정렬/정지 목표
+        self.declare_parameter('parking_stop_distance_m', 0.18)     # 마커 벽에서 멈출 거리
+        self.declare_parameter('lateral_tolerance_m', 0.035)
+        self.declare_parameter('bearing_tolerance_rad', 0.060)
+ 
+        # 속도/게인
+        self.declare_parameter('max_approach_speed_mps', 0.070)
+        self.declare_parameter('min_approach_speed_mps', 0.018)
+        self.declare_parameter('final_approach_speed_mps', 0.025)
+        self.declare_parameter('max_angular_speed_rps', 0.80)
+        self.declare_parameter('max_reverse_speed_mps', 0.040)
+        self.declare_parameter('k_z', 0.45)
+        self.declare_parameter('k_bearing', 1.80)
+ 
+        # 탐색/복구
+        self.declare_parameter('search_angular_speed_rps', 0.28)
+        self.declare_parameter('marker_lost_timeout_sec', 0.70)
+        self.declare_parameter('recovery_backup_time_sec', 1.20)
+        self.declare_parameter('max_retry_count', 3)
+ 
+    def _load_parking_parameters(self):
+        self.image_topic = self.get_parameter('image_topic').value
+        self.camera_info_topic = self.get_parameter('camera_info_topic').value
+        self.aruco_dictionary_name = self.get_parameter('aruco_dictionary').value
+        self.target_marker_id = int(self.get_parameter('target_marker_id').value)
+        self.marker_size_m = float(self.get_parameter('marker_size_m').value)
+ 
+        self.parking_stop_distance_m = float(self.get_parameter('parking_stop_distance_m').value)
+        self.lateral_tolerance_m = float(self.get_parameter('lateral_tolerance_m').value)
+        self.bearing_tolerance_rad = float(self.get_parameter('bearing_tolerance_rad').value)
+ 
+        self.max_approach_speed_mps = float(self.get_parameter('max_approach_speed_mps').value)
+        self.min_approach_speed_mps = float(self.get_parameter('min_approach_speed_mps').value)
+        self.final_approach_speed_mps = float(self.get_parameter('final_approach_speed_mps').value)
+        self.max_angular_speed_rps = float(self.get_parameter('max_angular_speed_rps').value)
+        self.max_reverse_speed_mps = float(self.get_parameter('max_reverse_speed_mps').value)
+        self.k_z = float(self.get_parameter('k_z').value)
+        self.k_bearing = float(self.get_parameter('k_bearing').value)
+ 
+        self.search_angular_speed_rps = float(self.get_parameter('search_angular_speed_rps').value)
+        self.marker_lost_timeout_sec = float(self.get_parameter('marker_lost_timeout_sec').value)
+        self.recovery_backup_time_sec = float(self.get_parameter('recovery_backup_time_sec').value)
+        self.max_retry_count = int(self.get_parameter('max_retry_count').value)
 
     # ================= Nav2 제어 =================
     def check_tf_and_start(self):
@@ -215,39 +273,263 @@ class DrivingNode(Node):
     #     self.mode = DrivingMode.NAV_TO_SIGNAL
 
     # # ================= 카메라: 직각주차/신호/가속 =================
-
-    # def on_camera(self, msg):
-    #     frame = msg  # TODO: cv_bridge로 실제 cv2 이미지 변환 필요
-
-    #     if self.mode == DrivingMode.PARKING:
-    #         pose = detect_aruco_pose(frame)
-    #         if pose is not None and aligned(pose):
-    #             self.wp_index = 2
-    #             self.send_waypoint(self.waypoints[2])                  # ⑤
-    #             self.mode = DrivingMode.NAV_TO_SIGNAL
-
-    #     elif self.mode == DrivingMode.NAV_TO_SIGNAL:
-    #         if reached_stop_line():                                     # ⑥
-    #             self.pause_nav()
-    #             self.mode = DrivingMode.SIGNAL_WAIT
-
-    #     elif self.mode == DrivingMode.SIGNAL_WAIT:
-    #         color = detect_signal_color(frame)
-    #         if color == 'green':
-    #             self.green_count += 1
-    #             if self.green_count >= 3:
-    #                 self.wp_index = 3
-    #                 self.resume_nav(self.waypoints[3])                  # ⑧
-    #                 self.mode = DrivingMode.NAV_TO_ACCEL
-    #                 self.green_count = 0
-    #         else:
-    #             self.green_count = 0
-
-    #     elif self.mode == DrivingMode.NAV_TO_ACCEL:
-    #         if detect_speed_sign(frame):                                 # ⑨
-    #             self.mode = DrivingMode.ACCEL_ZONE
-    #             self.accelerate_to(0.2)
-
+    def on_camera_info(self, msg: CameraInfo) -> None:
+        if self.camera_matrix is None:
+            self.camera_matrix = np.array(msg.k, dtype=np.float64).reshape(3, 3)
+            self.dist_coeffs = np.array(msg.d, dtype=np.float64)
+            self.get_logger().info('CameraInfo received. ArUco pose estimation enabled.')
+ 
+    def on_camera(self, msg: Image) -> None:
+        # -------------------------------------------------------------
+        # TODO(향후 구현 예정): 신호등 대기 / 가속 구간 로직
+        # 아래는 원래 스텁 코드에 있던 구현으로, 주차(PARKING) 이후
+        # 미션이 이어질 경우 여기에 맞춰 구현 예정. 지금은 미구현 상태.
+        #
+        # elif self.mode == DrivingMode.NAV_TO_SIGNAL:
+        #     if reached_stop_line():                                     # ⑥
+        #         self.pause_nav()
+        #         self.mode = DrivingMode.SIGNAL_WAIT
+        #
+        # elif self.mode == DrivingMode.SIGNAL_WAIT:
+        #     color = detect_signal_color(frame)
+        #     if color == 'green':
+        #         self.green_count += 1
+        #         if self.green_count >= 3:
+        #             self.wp_index = 3
+        #             self.resume_nav(self.waypoints[3])                  # ⑧
+        #             self.mode = DrivingMode.NAV_TO_ACCEL
+        #             self.green_count = 0
+        #     else:
+        #         self.green_count = 0
+        #
+        # elif self.mode == DrivingMode.NAV_TO_ACCEL:
+        #     if detect_speed_sign(frame):                                 # ⑨
+        #         self.mode = DrivingMode.ACCEL_ZONE
+        #         self.accelerate_to(0.2)
+        # -------------------------------------------------------------
+ 
+        if self.mode != DrivingMode.PARKING:
+            return  # 주차 모드가 아니면(신호등/가속 로직 미구현) 인식할 필요 없음
+ 
+        try:
+            frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+        except CvBridgeError as exc:
+            self.get_logger().warn(f'cv_bridge conversion failed: {exc}')
+            return
+ 
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+ 
+        if self.aruco_detector is not None:
+            corners, ids, _ = self.aruco_detector.detectMarkers(gray)
+        else:
+            corners, ids, _ = cv2.aruco.detectMarkers(
+                gray, self.aruco_dict, parameters=self.aruco_params
+            )
+ 
+        if ids is None or len(ids) == 0:
+            return
+ 
+        ids_flat = ids.flatten().astype(int)
+        target_indices = np.where(ids_flat == self.target_marker_id)[0]
+ 
+        if len(target_indices) == 0:
+            return
+ 
+        if self.camera_matrix is None or self.dist_coeffs is None:
+            return  # CameraInfo 아직 안 왔으면 거리 계산 불가
+ 
+        idx = int(target_indices[0])
+ 
+        try:
+            rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(
+                [corners[idx]], self.marker_size_m, self.camera_matrix, self.dist_coeffs
+            )
+        except Exception as exc:
+            self.get_logger().warn(f'ArUco pose estimation failed: {exc}')
+            return
+ 
+        corner = corners[idx].reshape(4, 2)
+        center = corner.mean(axis=0)
+        tvec = tvecs[0][0]
+ 
+        x_m = float(tvec[0])
+        z_m = float(tvec[2])
+        bearing_rad = math.atan2(x_m, max(z_m, 1e-6))
+ 
+        self.latest_observation = ArucoObservation(
+            marker_id=int(ids_flat[idx]),
+            x_m=x_m,
+            y_m=float(tvec[1]),
+            z_m=z_m,
+            bearing_rad=bearing_rad,
+            center_x=float(center[0]),
+            center_y=float(center[1]),
+        )
+        self.last_marker_time = self.get_clock().now()
+ 
+    def _create_aruco_detector(self, dictionary_name: str):
+        if not hasattr(cv2, 'aruco'):
+            raise RuntimeError('cv2.aruco 모듈이 없습니다. OpenCV 설치 상태를 확인하세요.')
+        if not hasattr(cv2.aruco, dictionary_name):
+            valid_names = [n for n in dir(cv2.aruco) if n.startswith('DICT_')]
+            raise RuntimeError(
+                f'지원하지 않는 ArUco dictionary: {dictionary_name}. 사용 가능 예: {valid_names[:10]}'
+            )
+ 
+        aruco_dict = cv2.aruco.getPredefinedDictionary(getattr(cv2.aruco, dictionary_name))
+ 
+        if hasattr(cv2.aruco, 'DetectorParameters'):
+            aruco_params = cv2.aruco.DetectorParameters()
+        else:
+            aruco_params = cv2.aruco.DetectorParameters_create()
+ 
+        aruco_detector = None
+        if hasattr(cv2.aruco, 'ArucoDetector'):
+            aruco_detector = cv2.aruco.ArucoDetector(aruco_dict, aruco_params)
+ 
+        return aruco_dict, aruco_params, aruco_detector
+ 
+    # ================= T자 주차 상태 기계 =================
+    def _reset_parking_state(self):
+        self.parking_state = ParkingState.SEARCH_MARKER
+        self.parking_state_enter_time = self.get_clock().now()
+        self.parking_retry_count = 0
+        self.latest_observation = None
+ 
+    def _transition_parking(self, new_state: ParkingState, reason: str = ''):
+        if self.parking_state == new_state:
+            return
+        old = self.parking_state
+        self.parking_state = new_state
+        self.parking_state_enter_time = self.get_clock().now()
+        self.get_logger().info(f'PARKING STATE: {old.value} -> {new_state.value}. reason={reason}')
+ 
+    def _elapsed(self, start_time) -> float:
+        return (self.get_clock().now() - start_time).nanoseconds * 1e-9
+ 
+    def _clamp(self, value: float, low: float, high: float) -> float:
+        return max(low, min(high, value))
+ 
+    def _get_tracking_observation(self) -> Optional[ArucoObservation]:
+        if self.latest_observation is None:
+            return None
+        if self._elapsed(self.last_marker_time) > self.marker_lost_timeout_sec:
+            return None
+        return self.latest_observation
+ 
+    def parking_control_loop(self):
+        if self.mode != DrivingMode.PARKING:
+            return
+ 
+        if self.parking_state == ParkingState.DONE:
+            return  # 이미 완료 처리됨 (on_parking_done에서 다음 웨이포인트로 이미 이동함)
+ 
+        if self.parking_state == ParkingState.FAILED:
+            self.pub_cmd.publish(Twist())
+            return
+ 
+        if self.parking_state == ParkingState.SEARCH_MARKER:
+            self._handle_parking_search()
+        elif self.parking_state == ParkingState.ALIGN_AXIS:
+            self._handle_parking_align()
+        elif self.parking_state == ParkingState.FINAL_APPROACH:
+            self._handle_parking_final()
+        elif self.parking_state == ParkingState.RECOVERY:
+            self._handle_parking_recovery()
+ 
+    def _handle_parking_search(self):
+        obs = self._get_tracking_observation()
+        if obs is not None:
+            self._transition_parking(ParkingState.ALIGN_AXIS, 'marker acquired')
+            return
+ 
+        elapsed = self._elapsed(self.parking_state_enter_time)
+        direction = 1.0 if self.last_tracking_angular_z >= 0.0 else -1.0
+        angular_z = direction * min(self.search_angular_speed_rps, 0.12)
+ 
+        cmd = Twist()
+        cmd.angular.z = angular_z
+        self.pub_cmd.publish(cmd)
+ 
+    def _handle_parking_align(self):
+        obs = self._get_tracking_observation()
+        if obs is None:
+            self._start_parking_recovery('marker lost during align')
+            return
+ 
+        aligned = (
+            abs(obs.x_m) <= self.lateral_tolerance_m
+            and abs(obs.bearing_rad) <= self.bearing_tolerance_rad
+        )
+        if aligned:
+            self._transition_parking(ParkingState.FINAL_APPROACH, 'axis aligned')
+            self.pub_cmd.publish(Twist())
+            return
+ 
+        angular_z = self._clamp(-self.k_bearing * obs.bearing_rad, -0.5, 0.5)
+        linear_x = 0.012 if abs(obs.bearing_rad) <= 0.12 else 0.0
+ 
+        cmd = Twist()
+        cmd.linear.x = linear_x
+        cmd.angular.z = angular_z
+        self.pub_cmd.publish(cmd)
+        self.last_tracking_angular_z = angular_z
+ 
+    def _handle_parking_final(self):
+        obs = self._get_tracking_observation()
+        if obs is None:
+            self._start_parking_recovery('marker lost during final approach')
+            return
+ 
+        if abs(obs.x_m) > self.lateral_tolerance_m * 2 or abs(obs.bearing_rad) > self.bearing_tolerance_rad * 2:
+            self._transition_parking(ParkingState.ALIGN_AXIS, 'drifted out of alignment')
+            return
+ 
+        if obs.z_m <= self.parking_stop_distance_m:
+            self.pub_cmd.publish(Twist())
+            self._transition_parking(ParkingState.DONE, 'parking distance reached')
+            self._on_parking_done()
+            return
+ 
+        distance_error = obs.z_m - self.parking_stop_distance_m
+        linear_x = max(self.min_approach_speed_mps, self.k_z * distance_error)
+        linear_x = self._clamp(linear_x, 0.0, self.final_approach_speed_mps)
+        angular_z = self._clamp(-self.k_bearing * obs.bearing_rad, -0.3, 0.3)
+ 
+        cmd = Twist()
+        cmd.linear.x = linear_x
+        cmd.angular.z = angular_z
+        self.pub_cmd.publish(cmd)
+ 
+    def _start_parking_recovery(self, reason: str):
+        self.parking_retry_count += 1
+        self._transition_parking(ParkingState.RECOVERY, reason)
+ 
+    def _handle_parking_recovery(self):
+        elapsed = self._elapsed(self.parking_state_enter_time)
+        if elapsed < self.recovery_backup_time_sec:
+            cmd = Twist()
+            cmd.linear.x = -self.max_reverse_speed_mps
+            self.pub_cmd.publish(cmd)
+            return
+ 
+        self.pub_cmd.publish(Twist())
+ 
+        if self.parking_retry_count >= self.max_retry_count:
+            self._transition_parking(ParkingState.FAILED, 'retry count exceeded')
+            return
+ 
+        self._transition_parking(ParkingState.SEARCH_MARKER, 'recovery finished')
+ 
+    def _on_parking_done(self):
+        """
+        주차 완료 시 호출. 다음 웨이포인트(경유점2)로 이동.
+        NOTE: 원래 on_camera 함수 안에, if aligned(pose): 조건문 밑에 끼워져 있었음
+        상태 머신을 나누면서 진짜 완료 시점에만 실행되도록 함
+        """
+        self.wp_index = 1
+        self.send_waypoint(self.waypoints[1])
+        self.mode = DrivingMode.NAV_TO_SIGNAL
 
 def main(args=None):
     rclpy.init(args=args)
