@@ -1,6 +1,7 @@
 from enum import Enum, auto
 
 class DrivingMode(Enum):
+    NAV_TO_START = auto()
     NAV_TO_PARKING = auto()
     PARKING = auto()
     OBSTACLE_RESPONSE = auto()

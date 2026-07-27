@@ -20,6 +20,7 @@ from yeyu_control.driving_mode import DrivingMode
 from ament_index_python.packages import get_package_share_directory
 
 NAV_ARRIVAL_TRANSITIONS = {
+    DrivingMode.NAV_TO_START: DrivingMode.NAV_TO_PARKING,
     DrivingMode.NAV_TO_PARKING: DrivingMode.PARKING,
     DrivingMode.NAV_TO_SIGNAL: DrivingMode.SIGNAL_WAIT,
     DrivingMode.NAV_TO_ACCEL: DrivingMode.ACCEL_ZONE,
@@ -172,6 +173,11 @@ class DrivingNode(Node):
                 if next_mode is not None:
                     self.get_logger().info(f'{self.mode.name} -> {next_mode.name} 모드 전환')
                     self.mode = next_mode
+
+
+                    if self.mode == DrivingMode.NAV_TO_PARKING:
+                        self.wp_index = 1
+                        self.send_waypoint(self.waypoints[self.wp_index])
                 else:
                     # 지금 mode가 NAV_TO_* 계열이 아닌데 도착 콜백이 온 경우 (비정상 상황)
                     self.get_logger().warn(f'예상치 못한 도착 콜백, 현재 mode={self.mode.name}')
@@ -206,7 +212,7 @@ class DrivingNode(Node):
     #     self.pub_led.publish(String(data='BLINK'))
     #     # TODO: LiDAR 재검사로 장애물이 실제로 치워졌는지 확인 후에만 resume하는 게 안전
     #     self.resume_nav(self.pending_resume_wp)                        # ③
-    #     self.mode = DrivingMode.NAV_TO_PARKING
+    #     self.mode = DrivingMode.NAV_TO_SIGNAL
 
     # # ================= 카메라: 직각주차/신호/가속 =================
 
@@ -216,8 +222,8 @@ class DrivingNode(Node):
     #     if self.mode == DrivingMode.PARKING:
     #         pose = detect_aruco_pose(frame)
     #         if pose is not None and aligned(pose):
-    #             self.wp_index = 1
-    #             self.send_waypoint(self.waypoints[1])                  # ⑤
+    #             self.wp_index = 2
+    #             self.send_waypoint(self.waypoints[2])                  # ⑤
     #             self.mode = DrivingMode.NAV_TO_SIGNAL
 
     #     elif self.mode == DrivingMode.NAV_TO_SIGNAL:
@@ -230,8 +236,8 @@ class DrivingNode(Node):
     #         if color == 'green':
     #             self.green_count += 1
     #             if self.green_count >= 3:
-    #                 self.wp_index = 2
-    #                 self.resume_nav(self.waypoints[2])                  # ⑧
+    #                 self.wp_index = 3
+    #                 self.resume_nav(self.waypoints[3])                  # ⑧
     #                 self.mode = DrivingMode.NAV_TO_ACCEL
     #                 self.green_count = 0
     #         else:
