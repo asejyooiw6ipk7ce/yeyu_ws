@@ -668,7 +668,6 @@ class DrivingNode(Node):
 
         cv2.line(debug, (w // 2, 0), (w // 2, h), (255, 255, 255), 1)
 
-<<<<<<< Updated upstream
         state_text = f'state={self.parking_state.value}'
         cv2.putText(
             debug,
@@ -759,72 +758,6 @@ class DrivingNode(Node):
 
 
 def main(args=None) -> None:
-=======
-    def on_camera(self, msg):
-        try: 
-            cv_image = self.bridge.imgmsg_to_cv2(msg , desired_encoding= 'bgr8')
-        except Exception as e :
-            self.get_logger().warn(f'cv_bridge 변환 실패: {e}')
-
-            return
-        
-        flipped = cv2.flip(cv_image, -1)
-        out_msg = self.bridge.cv2_to_imgmsg(flipped, encoding='bgr8')
-        out_msg.header = msg.header
-        self.image_pub.publish(out_msg)
-
-        if self.mode == DrivingMode.PARKING:
-            pose = detect_aruco_pose(flipped)
-            if pose is not None and aligned(pose):
-                self.wp_index = 2
-                self.send_waypoint(self.waypoints[2])                  # ⑤
-                self.mode = DrivingMode.NAV_TO_SIGNAL
-
-        elif self.mode == DrivingMode.NAV_TO_SIGNAL:
-            if reached_stop_line():                                     # ⑥
-                self.pause_nav()
-                self.mode = DrivingMode.SIGNAL_WAIT
-
-        elif self.mode == DrivingMode.SIGNAL_WAIT:
-            color = self.detect_signal_color(flipped)
-            if color == 'green':
-                self.green_count += 1
-                if self.green_count >= 3:
-                    self.green_count =0
-                    self.mode = DrivingMode.NAV_TO_ACCEL
-                    self.wp_index = 3
-                    self.resume_nav(self.waypoints[3])                  # ⑧
-                    
-            else:
-                self.green_count = 0
-
-        elif self.mode == DrivingMode.NAV_TO_ACCEL:
-            if detect_speed_sign(flipped):                                 # ⑨
-                self.mode = DrivingMode.ACCEL_ZONE
-                self.accelerate_to(0.2)
-
-
-    def detect_signal_color(self, cv_image):
-
-        
-
-        hsv = cv2.cvtColor(cv_image, cv2.COLOR_BGR2HSV)
-
-        green_mask = cv2.inRange(hsv, self.GREEN_LOWER, self.GREEN_UPPER)
-        green_count = cv2.countNonZero(green_mask)
-
-        if green_count > self.SIGNAL_PIXEL_THRESHOLD:
-            return 'green'
-        else:
-            return 'unknown'
-
-
-
-
-
-
-def main(args=None):
->>>>>>> Stashed changes
     rclpy.init(args=args)
 
     node = None
