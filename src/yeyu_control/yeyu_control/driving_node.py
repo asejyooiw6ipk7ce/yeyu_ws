@@ -12,6 +12,7 @@ from sensor_msgs.msg import Image, LaserScan, CameraInfo
 from geometry_msgs.msg import Twist
 from std_msgs.msg import String
 from yeyu_msgs.msg import DrivingStatus
+from sensor_msgs.msg import CompressedImage  
 from yeyu_control.driving_mode import DrivingMode
 from ament_index_python.packages import get_package_share_directory
 
@@ -78,6 +79,7 @@ class DrivingNode(Node):
         # self.create_subscription(Image, '/camera/image_raw', self.on_camera, 10)
         self.pub_led = self.create_publisher(String, '/led_command', 10)
         self.pub_cmd = self.create_publisher(Twist, '/cmd_vel', 10)
+        self.debug_pub = self.create_publisher(CompressedImage, '/parking_debug_image', 10)
         self.pub_status = self.create_publisher(DrivingStatus, '/driving_status', 10)
 
         # --- 4. T자 주차(ArUco) 파라미터 ---
@@ -160,8 +162,11 @@ class DrivingNode(Node):
         # 탐색/복구
         self.declare_parameter('search_angular_speed_rps', 0.28)
         self.declare_parameter('marker_lost_timeout_sec', 0.70)
+        self.declare_parameter('stale_stop_timeout_sec', 0.25)
         self.declare_parameter('recovery_backup_time_sec', 1.20)
         self.declare_parameter('max_retry_count', 3)
+        self.declare_parameter('max_parking_time_sec', 60.0)
+        self.declare_parameter('enable_debug_image', True)
  
     def _load_parking_parameters(self):
         self.image_topic = self.get_parameter('image_topic').value
@@ -184,8 +189,19 @@ class DrivingNode(Node):
  
         self.search_angular_speed_rps = float(self.get_parameter('search_angular_speed_rps').value)
         self.marker_lost_timeout_sec = float(self.get_parameter('marker_lost_timeout_sec').value)
+        self.stale_stop_timeout_sec = float(self.get_parameter('stale_stop_timeout_sec').value)
         self.recovery_backup_time_sec = float(self.get_parameter('recovery_backup_time_sec').value)
         self.max_retry_count = int(self.get_parameter('max_retry_count').value)
+        self.max_parking_time_sec = float(self.get_parameter('max_parking_time_sec').value)
+        self.enable_debug_image = self._get_bool_parameter('enable_debug_image')
+
+    def _get_bool_parameter(self, name: str) -> bool:
+        value = self.get_parameter(name).value
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.lower() in ['true', '1', 'yes', 'on']
+        return bool(value)
 
     # ================= Nav2 제어 =================
     def check_tf_and_start(self):
@@ -343,47 +359,53 @@ class DrivingNode(Node):
             corners, ids, _ = cv2.aruco.detectMarkers(
                 gray, self.aruco_dict, parameters=self.aruco_params
             )
- 
-        if ids is None or len(ids) == 0:
-            return
- 
-        ids_flat = ids.flatten().astype(int)
-        target_indices = np.where(ids_flat == self.target_marker_id)[0]
- 
-        if len(target_indices) == 0:
-            return
- 
-        if self.camera_matrix is None or self.dist_coeffs is None:
-            return  # CameraInfo 아직 안 왔으면 거리 계산 불가
- 
-        idx = int(target_indices[0])
- 
-        try:
-            rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(
-                [corners[idx]], self.marker_size_m, self.camera_matrix, self.dist_coeffs
-            )
-        except Exception as exc:
-            self.get_logger().warn(f'ArUco pose estimation failed: {exc}')
-            return
- 
-        corner = corners[idx].reshape(4, 2)
-        center = corner.mean(axis=0)
-        tvec = tvecs[0][0]
- 
-        x_m = float(tvec[0])
-        z_m = float(tvec[2])
-        bearing_rad = math.atan2(x_m, max(z_m, 1e-6))
- 
-        self.latest_observation = ArucoObservation(
-            marker_id=int(ids_flat[idx]),
-            x_m=x_m,
-            y_m=float(tvec[1]),
-            z_m=z_m,
-            bearing_rad=bearing_rad,
-            center_x=float(center[0]),
-            center_y=float(center[1]),
-        )
-        self.last_marker_time = self.get_clock().now()
+
+        observation = None
+        selected_index = None       
+
+        # 디버깅 이미지 - 마커 못 찾으면 observation = None인 상태로 _drawing_debug_image로 보냄
+        if ids is not None and len(ids) > 0:
+            ids_flat = ids.flatten().astype(int)
+            target_indices = np.where(ids_flat == self.target_marker_id)[0]
+
+            if len(target_indices) > 0 and self.camera_matrix is not None and self.dist_coeffs is not None:
+                idx = int(target_indices[0])
+                selected_index = idx  
+                try:
+                    rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(
+                        [corners[idx]], self.marker_size_m, self.camera_matrix, self.dist_coeffs
+                    )
+                    corner = corners[idx].reshape(4, 2)
+                    center = corner.mean(axis=0)
+                    tvec = tvecs[0][0]
+
+                    x_m = float(tvec[0])
+                    z_m = float(tvec[2])
+                    bearing_rad = math.atan2(x_m, max(z_m, 1e-6))
+
+                    observation = ArucoObservation(
+                        marker_id=int(ids_flat[idx]),
+                        x_m=x_m,
+                        y_m=float(tvec[1]),
+                        z_m=z_m,
+                        bearing_rad=bearing_rad,
+                        center_x=float(center[0]),
+                        center_y=float(center[1]),
+                    )
+                    self.latest_observation = observation
+                    self.last_marker_time = self.get_clock().now()
+                except Exception as exc:
+                    self.get_logger().warn(f'ArUco pose estimation failed: {exc}')
+                    selected_index = None 
+
+        if self.enable_debug_image:
+            debug_frame = self._draw_debug_image(frame, corners, ids, observation, selected_index)
+            try:
+                debugout_msg = self.bridge.cv2_to_compressed_imgmsg(debug_frame, dst_format='jpg')
+                debugout_msg.header = msg.header
+                self.debug_pub.publish(debugout_msg)
+            except CvBridgeError as exc:
+                self.get_logger().warn(f'debug image publish failed: {exc}')
  
     def _create_aruco_detector(self, dictionary_name: str):
         if not hasattr(cv2, 'aruco'):
@@ -413,6 +435,7 @@ class DrivingNode(Node):
     def _reset_parking_state(self):
         self.parking_state = ParkingState.SEARCH_MARKER
         self.parking_state_enter_time = self.get_clock().now()
+        self.parking_start_time = self.get_clock().now()     #주차시간 제한용
         self.parking_retry_count = 0
         self.latest_observation = None
  
@@ -430,17 +453,40 @@ class DrivingNode(Node):
     def _clamp(self, value: float, low: float, high: float) -> float:
         return max(low, min(high, value))
  
-    def _get_tracking_observation(self) -> Optional[ArucoObservation]:
+    def _get_tracking_observation(
+        self,
+        lost_reason: str
+    ) -> Optional[ArucoObservation]:
         if self.latest_observation is None:
+            self.pub_cmd.publish(Twist())
+            self._start_parking_recovery(lost_reason)
             return None
-        if self._elapsed(self.last_marker_time) > self.marker_lost_timeout_sec:
+
+        observation_age = self._elapsed(self.last_marker_time)
+
+        if observation_age > self.marker_lost_timeout_sec:
+            self.pub_cmd.publish(Twist())
+            self._start_parking_recovery(lost_reason)
             return None
+
+        if observation_age > self.stale_stop_timeout_sec:
+            # 완전히 놓친 건 아님 -> 일단 정지하고 재인식 대기
+            self.pub_cmd.publish(Twist())
+            return None
+
         return self.latest_observation
  
     def parking_control_loop(self):
         if self.mode != DrivingMode.PARKING:
             return
- 
+
+        self.publish_parking_state()   
+
+        # 전체 주차 시간 제한
+        if self._elapsed(self.parking_start_time) > self.max_parking_time_sec:
+            if self.parking_state not in [ParkingState.DONE, ParkingState.FAILED]:
+                self._transition_parking(ParkingState.FAILED, 'max parking time exceeded')
+
         if self.parking_state == ParkingState.DONE:
             return  # 이미 완료 처리됨 (on_parking_done에서 다음 웨이포인트로 이미 이동함)
  
@@ -458,23 +504,41 @@ class DrivingNode(Node):
             self._handle_parking_recovery()
  
     def _handle_parking_search(self):
-        obs = self._get_tracking_observation()
+        obs = self._get_tracking_observation('re-check during search')
         if obs is not None:
             self._transition_parking(ParkingState.ALIGN_AXIS, 'marker acquired')
             return
- 
+            
         elapsed = self._elapsed(self.parking_state_enter_time)
-        direction = 1.0 if self.last_tracking_angular_z >= 0.0 else -1.0
-        angular_z = direction * min(self.search_angular_speed_rps, 0.12)
+
+        # 마지막으로 돌던 방향과 반대로 초기 탐색 방향을 잡음
+        if self.last_tracking_angular_z > 0.0:
+            initial_direction = -1.0
+        elif self.last_tracking_angular_z < 0.0:
+            initial_direction = 1.0
+        else:
+            initial_direction = 1.0
+
+        if elapsed < 2.0:
+            direction = initial_direction
+        else:
+            search_phase = int((elapsed - 2.0) / 3.0)
+            direction = (
+                -initial_direction
+                if search_phase % 2 == 0
+                else initial_direction
+            )
+
+        angular_z = direction * min(self.search_angular_speed_rps, 0.12)    
  
         cmd = Twist()
         cmd.angular.z = angular_z
         self.pub_cmd.publish(cmd)
  
     def _handle_parking_align(self):
-        obs = self._get_tracking_observation()
+        obs = self._get_tracking_observation('marker lost during align')
         if obs is None:
-            self._start_parking_recovery('marker lost during align')
+            # self._start_parking_recovery('marker lost during align')
             return
  
         aligned = (
@@ -496,9 +560,9 @@ class DrivingNode(Node):
         self.last_tracking_angular_z = angular_z
  
     def _handle_parking_final(self):
-        obs = self._get_tracking_observation()
+        obs = self._get_tracking_observation('marker lost during final approach')
         if obs is None:
-            self._start_parking_recovery('marker lost during final approach')
+            # self._start_parking_recovery('marker lost during final approach')
             return
  
         if abs(obs.x_m) > self.lateral_tolerance_m * 2 or abs(obs.bearing_rad) > self.bearing_tolerance_rad * 2:
@@ -540,7 +604,27 @@ class DrivingNode(Node):
             return
  
         self._transition_parking(ParkingState.SEARCH_MARKER, 'recovery finished')
- 
+
+    def publish_parking_state(self) -> None:
+        msg = DrivingStatus()
+        msg.mode = self.mode.value   # DrivingMode enum이 .value로 문자열 나오는지 확인 필요
+
+        if self.parking_state == ParkingState.DONE:
+            msg.result = 'PASS'
+        elif self.parking_state == ParkingState.FAILED:
+            msg.result = 'FAIL'
+        else:
+            msg.result = 'IN_PROGRESS'
+
+        obs = self.latest_observation
+        msg.error_lateral = float(obs.x_m) if obs is not None else 0.0
+        msg.error_distance = (
+            float(obs.z_m - self.parking_stop_distance_m) if obs is not None else 0.0
+        )
+        msg.retry_count = self.parking_retry_count
+
+        self.pub_status.publish(msg)
+    
     def _on_parking_done(self):
         """
         주차 완료 시 호출. 다음 웨이포인트(경유점2)로 이동.
@@ -550,6 +634,112 @@ class DrivingNode(Node):
         self.wp_index = 1
         self.send_waypoint(self.waypoints[1])
         self.mode = DrivingMode.NAV_TO_SIGNAL
+
+    def _draw_debug_image(
+        self,
+        frame,
+        corners,
+        ids,
+        observation: Optional[ArucoObservation],
+        selected_index: Optional[int],
+    ):
+        debug = frame.copy()
+
+        if ids is not None and len(ids) > 0:
+            cv2.aruco.drawDetectedMarkers(debug, corners, ids)
+
+        h, w = debug.shape[:2]
+
+        cv2.line(debug, (w // 2, 0), (w // 2, h), (255, 255, 255), 1)
+
+        state_text = f'state={self.parking_state.value}'
+        cv2.putText(
+            debug,
+            state_text,
+            (10, 25),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.60,
+            (255, 255, 0),
+            2,
+            cv2.LINE_AA,
+        )
+
+        if observation is not None:
+            cx = int(observation.center_x)
+            cy = int(observation.center_y)
+
+            cv2.circle(debug, (cx, cy), 5, (0, 0, 255), -1)
+
+            info_1 = (
+                f'id={observation.marker_id} '
+                f'z={observation.z_m:.2f}m '
+                f'x={observation.x_m:.2f}m'
+            )
+
+            info_2 = (
+                f'bearing={observation.bearing_rad:.2f} '
+                f'retry={self.parking_retry_count}/{self.max_retry_count}'
+            )
+
+            cv2.putText(
+                debug,
+                info_1,
+                (10, 55),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.60,
+                (0, 255, 0),
+                2,
+                cv2.LINE_AA,
+            )
+
+            cv2.putText(
+                debug,
+                info_2,
+                (10, 85),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.60,
+                (0, 255, 0),
+                2,
+                cv2.LINE_AA,
+            )
+
+            if (
+                selected_index is not None
+                and self.camera_matrix is not None
+                and self.dist_coeffs is not None
+            ):
+                try:
+                    rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(
+                        [corners[selected_index]],
+                        self.marker_size_m,
+                        self.camera_matrix,
+                        self.dist_coeffs,
+                    )
+
+                    cv2.drawFrameAxes(
+                        debug,
+                        self.camera_matrix,
+                        self.dist_coeffs,
+                        rvecs[0],
+                        tvecs[0],
+                        self.marker_size_m * 0.5,
+                    )
+                except Exception:
+                    pass
+        else:
+            cv2.putText(
+                debug,
+                'target marker not found',
+                (10, 55),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.60,
+                (0, 0, 255),
+                2,
+                cv2.LINE_AA,
+            )
+
+        return debug
+
 
 def main(args=None) -> None:
     rclpy.init(args=args)
