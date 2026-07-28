@@ -394,7 +394,9 @@ class DrivingNode(Node):
                 f'지원하지 않는 ArUco dictionary: {dictionary_name}. 사용 가능 예: {valid_names[:10]}'
             )
  
-        aruco_dict = cv2.aruco.getPredefinedDictionary(getattr(cv2.aruco, dictionary_name))
+        aruco_dict = cv2.aruco.getPredefinedDictionary(
+            getattr(cv2.aruco, dictionary_name)
+        )
  
         if hasattr(cv2.aruco, 'DetectorParameters'):
             aruco_params = cv2.aruco.DetectorParameters()
@@ -549,13 +551,19 @@ class DrivingNode(Node):
         self.send_waypoint(self.waypoints[1])
         self.mode = DrivingMode.NAV_TO_SIGNAL
 
-def main(args=None):
+def main(args=None) -> None:
     rclpy.init(args=args)
-    node = DrivingNode()
+
+    node = None
+
     try:
+        node = DrivingNode()
         rclpy.spin(node)
     except KeyboardInterrupt:
         pass
     finally:
-        node.destroy_node()
-        rclpy.shutdown()
+        if node is not None:
+            node.destroy_node()
+
+        if rclpy.ok():
+            rclpy.shutdown()
