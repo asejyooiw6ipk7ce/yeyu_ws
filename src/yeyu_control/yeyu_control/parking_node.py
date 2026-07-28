@@ -77,7 +77,33 @@ class DrivingNode(Node):
         self.nav_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
         self.current_goal_handle = None
 
-        # --- 3. 구독/발행 ---
+        # --- 3. T자 주차(ArUco) 파라미터 ---
+        self._declare_parking_parameters()
+        self._load_parking_parameters()
+    
+        self.bridge = CvBridge()
+
+        self.camera_matrix: Optional[np.ndarray] = None
+        self.dist_coeffs: Optional[np.ndarray] = None
+
+        self.latest_observation: Optional[ArucoObservation] = None
+        self.last_marker_time = self.get_clock().now() - Duration(seconds=999.0)
+
+
+    
+        self.parking_state = ParkingState.SEARCH_MARKER
+        self.parking_state_enter_time = self.get_clock().now()
+
+
+        self.parking_retry_count = 0
+
+        self.last_tracking_angular_z = 0.0
+    
+        self.aruco_dict, self.aruco_params, self.aruco_detector = self._create_aruco_detector(
+            self.aruco_dictionary_name
+        )
+
+        # --- 4. 구독/발행 ---
         sensor_qos = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
             durability=DurabilityPolicy.VOLATILE,
@@ -94,32 +120,6 @@ class DrivingNode(Node):
         #self.debug_pub = self.create_publisher(CompressedImage, '/parking_debug_image', 10)
         self.pub_status = self.create_publisher(DrivingStatus, '/driving_status', 10)
         self.image_pub = self.create_publisher(Image, '/camera/image_flipped', 10)
-
-        # --- 4. T자 주차(ArUco) 파라미터 ---
-        self._declare_parking_parameters()
-        self._load_parking_parameters()
- 
-        self.bridge = CvBridge()
-
-        self.camera_matrix: Optional[np.ndarray] = None
-        self.dist_coeffs: Optional[np.ndarray] = None
-
-        self.latest_observation: Optional[ArucoObservation] = None
-        self.last_marker_time = self.get_clock().now() - Duration(seconds=999.0)
-
-
- 
-        self.parking_state = ParkingState.SEARCH_MARKER
-        self.parking_state_enter_time = self.get_clock().now()
-
-
-        self.parking_retry_count = 0
-
-        self.last_tracking_angular_z = 0.0
- 
-        self.aruco_dict, self.aruco_params, self.aruco_detector = self._create_aruco_detector(
-            self.aruco_dictionary_name
-        )
  
         # 주차 제어 루프 (10Hz). mode가 PARKING일 때만 실제로 동작함.
         self.create_timer(1.0 / 10.0, self.parking_control_loop)
