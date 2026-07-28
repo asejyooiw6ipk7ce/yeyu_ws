@@ -29,7 +29,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'driving_node = yeyu_control.driving_node:main',
+            'parking_node = yeyu_control.parking_node:main',
             'function_node = yeyu_control.function_node:main',
             'main_node = yeyu_control.main_node:main',
             'signal_test_node = yeyu_control.signal_test_node:main',
