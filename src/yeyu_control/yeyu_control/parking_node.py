@@ -188,23 +188,13 @@ class DrivingNode(Node):
         self.max_parking_time_sec = float(self.get_parameter('max_parking_time_sec').value)
         self.enable_debug_image = self._get_bool_parameter('enable_debug_image')
 
-    # def _get_bool_parameter(self, name: str) -> bool:
-    #     value = self.get_parameter(name).value
-    #     if isinstance(value, bool):
-    #         return value
-    #     if isinstance(value, str):
-    #         return value.lower() in ['true', '1', 'yes', 'on']
-    #     return bool(value)
-
-    #     # --- CvBridge: ROS Image <-> OpenCV(np.ndarray) 변환기 ---
-    #     self.bridge = CvBridge()
-
-    #     # --- HSV 색상 범위 --- (우선 초록만 인식)
-
-    #     self.GREEN_LOWER = np.array([40, 80, 80])
-    #     self.GREEN_HIGHER = np.array([85, 255, 255])
-
-    #     self.SIGNAL_PIXEL_THRESHOLD = 300
+    def _get_bool_parameter(self, name: str) -> bool:
+        value = self.get_parameter(name).value
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.lower() in ['true', '1', 'yes', 'on']
+        return bool(value)
 
     # ================= Nav2 제어 =================
     def check_tf_and_start(self):
