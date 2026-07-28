@@ -78,8 +78,16 @@ class DrivingNode(Node):
         self.current_goal_handle = None
 
         # --- 3. 구독/발행 ---
-        self.create_subscription(LaserScan, '/scan', self.on_lidar, 10)
-        self.create_subscription(Image, '/camera/image_raw', self.on_camera, 10)
+        sensor_qos = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            durability=DurabilityPolicy.VOLATILE,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1,
+        )
+
+        #self.create_subscription(LaserScan, '/scan', self.on_lidar, 10)    #-> on_lidar 필요할 때 주석 해제
+        self.create_subscription(Image, self.image_topic, self.on_camera, sensor_qos)
+        self.create_subscription(CameraInfo, self.camera_info_topic, self.on_camera_info, sensor_qos)
         self.pub_led = self.create_publisher(String, '/led_command', 10)
         self.pub_cmd = self.create_publisher(Twist, '/cmd_vel', 10)
         self.debug_pub = self.create_publisher(Image, '/parking_debug_image', 10)
@@ -111,27 +119,6 @@ class DrivingNode(Node):
  
         self.aruco_dict, self.aruco_params, self.aruco_detector = self._create_aruco_detector(
             self.aruco_dictionary_name
-        )
- 
-        sensor_qos = QoSProfile(
-            reliability=ReliabilityPolicy.BEST_EFFORT,
-            durability=DurabilityPolicy.VOLATILE,
-            history=HistoryPolicy.KEEP_LAST,
-            depth=1,
-        )
- 
-        self.create_subscription(
-            Image, 
-            self.image_topic, 
-            self.on_camera, 
-            sensor_qos
-        )
-
-        self.create_subscription(
-            CameraInfo, 
-            self.camera_info_topic, 
-            self.on_camera_info, 
-            sensor_qos
         )
  
         # 주차 제어 루프 (10Hz). mode가 PARKING일 때만 실제로 동작함.
@@ -201,23 +188,23 @@ class DrivingNode(Node):
         self.max_parking_time_sec = float(self.get_parameter('max_parking_time_sec').value)
         self.enable_debug_image = self._get_bool_parameter('enable_debug_image')
 
-    def _get_bool_parameter(self, name: str) -> bool:
-        value = self.get_parameter(name).value
-        if isinstance(value, bool):
-            return value
-        if isinstance(value, str):
-            return value.lower() in ['true', '1', 'yes', 'on']
-        return bool(value)
+    # def _get_bool_parameter(self, name: str) -> bool:
+    #     value = self.get_parameter(name).value
+    #     if isinstance(value, bool):
+    #         return value
+    #     if isinstance(value, str):
+    #         return value.lower() in ['true', '1', 'yes', 'on']
+    #     return bool(value)
 
-        # --- CvBridge: ROS Image <-> OpenCV(np.ndarray) 변환기 ---
-        self.bridge = CvBridge()
+    #     # --- CvBridge: ROS Image <-> OpenCV(np.ndarray) 변환기 ---
+    #     self.bridge = CvBridge()
 
-        # --- HSV 색상 범위 --- (우선 초록만 인식)
+    #     # --- HSV 색상 범위 --- (우선 초록만 인식)
 
-        self.GREEN_LOWER = np.array([40, 80, 80])
-        self.GREEN_HIGHER = np.array([85, 255, 255])
+    #     self.GREEN_LOWER = np.array([40, 80, 80])
+    #     self.GREEN_HIGHER = np.array([85, 255, 255])
 
-        self.SIGNAL_PIXEL_THRESHOLD = 300
+    #     self.SIGNAL_PIXEL_THRESHOLD = 300
 
     # ================= Nav2 제어 =================
     def check_tf_and_start(self):
