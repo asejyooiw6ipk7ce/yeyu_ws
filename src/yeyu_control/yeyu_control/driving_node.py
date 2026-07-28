@@ -15,6 +15,9 @@ from yeyu_msgs.msg import DrivingStatus
 from sensor_msgs.msg import CompressedImage  
 from yeyu_control.driving_mode import DrivingMode
 from ament_index_python.packages import get_package_share_directory
+from cv_bridge import CvBridge
+import cv2
+import numpy as np
 
 from enum import Enum
 from dataclasses import dataclass
@@ -66,7 +69,7 @@ class DrivingNode(Node):
         )
         with open(wp_path) as f:
             self.waypoints = yaml.safe_load(f)['waypoints']
-        self.wp_index = 0 
+        self.wp_index = 0
         self.pending_resume_wp = None
         self.green_count = 0
 
@@ -75,13 +78,14 @@ class DrivingNode(Node):
         self.current_goal_handle = None
 
         # --- 3. 구독/발행 ---
-        # self.create_subscription(LaserScan, '/scan', self.on_lidar, 10)
-        # self.create_subscription(Image, '/camera/image_raw', self.on_camera, 10)
+        self.create_subscription(LaserScan, '/scan', self.on_lidar, 10)
+        self.create_subscription(Image, '/camera/image_raw', self.on_camera, 10)
         self.pub_led = self.create_publisher(String, '/led_command', 10)
         self.pub_cmd = self.create_publisher(Twist, '/cmd_vel', 10)
         self.debug_pub = self.create_publisher(Image, '/parking_debug_image', 10)
         #self.debug_pub = self.create_publisher(CompressedImage, '/parking_debug_image', 10)
         self.pub_status = self.create_publisher(DrivingStatus, '/driving_status', 10)
+        self.image_pub = self.create_publisher(Image, '/camera/image_flipped', 10)
 
         # --- 4. T자 주차(ArUco) 파라미터 ---
         self._declare_parking_parameters()
@@ -204,6 +208,16 @@ class DrivingNode(Node):
         if isinstance(value, str):
             return value.lower() in ['true', '1', 'yes', 'on']
         return bool(value)
+
+        # --- CvBridge: ROS Image <-> OpenCV(np.ndarray) 변환기 ---
+        self.bridge = CvBridge()
+
+        # --- HSV 색상 범위 --- (우선 초록만 인식)
+
+        self.GREEN_LOWER = np.array([40, 80, 80])
+        self.GREEN_HIGHER = np.array([85, 255, 255])
+
+        self.SIGNAL_PIXEL_THRESHOLD = 300
 
     # ================= Nav2 제어 =================
     def check_tf_and_start(self):
@@ -654,6 +668,7 @@ class DrivingNode(Node):
 
         cv2.line(debug, (w // 2, 0), (w // 2, h), (255, 255, 255), 1)
 
+<<<<<<< Updated upstream
         state_text = f'state={self.parking_state.value}'
         cv2.putText(
             debug,
@@ -744,6 +759,72 @@ class DrivingNode(Node):
 
 
 def main(args=None) -> None:
+=======
+    def on_camera(self, msg):
+        try: 
+            cv_image = self.bridge.imgmsg_to_cv2(msg , desired_encoding= 'bgr8')
+        except Exception as e :
+            self.get_logger().warn(f'cv_bridge 변환 실패: {e}')
+
+            return
+        
+        flipped = cv2.flip(cv_image, -1)
+        out_msg = self.bridge.cv2_to_imgmsg(flipped, encoding='bgr8')
+        out_msg.header = msg.header
+        self.image_pub.publish(out_msg)
+
+        if self.mode == DrivingMode.PARKING:
+            pose = detect_aruco_pose(flipped)
+            if pose is not None and aligned(pose):
+                self.wp_index = 2
+                self.send_waypoint(self.waypoints[2])                  # ⑤
+                self.mode = DrivingMode.NAV_TO_SIGNAL
+
+        elif self.mode == DrivingMode.NAV_TO_SIGNAL:
+            if reached_stop_line():                                     # ⑥
+                self.pause_nav()
+                self.mode = DrivingMode.SIGNAL_WAIT
+
+        elif self.mode == DrivingMode.SIGNAL_WAIT:
+            color = self.detect_signal_color(flipped)
+            if color == 'green':
+                self.green_count += 1
+                if self.green_count >= 3:
+                    self.green_count =0
+                    self.mode = DrivingMode.NAV_TO_ACCEL
+                    self.wp_index = 3
+                    self.resume_nav(self.waypoints[3])                  # ⑧
+                    
+            else:
+                self.green_count = 0
+
+        elif self.mode == DrivingMode.NAV_TO_ACCEL:
+            if detect_speed_sign(flipped):                                 # ⑨
+                self.mode = DrivingMode.ACCEL_ZONE
+                self.accelerate_to(0.2)
+
+
+    def detect_signal_color(self, cv_image):
+
+        
+
+        hsv = cv2.cvtColor(cv_image, cv2.COLOR_BGR2HSV)
+
+        green_mask = cv2.inRange(hsv, self.GREEN_LOWER, self.GREEN_UPPER)
+        green_count = cv2.countNonZero(green_mask)
+
+        if green_count > self.SIGNAL_PIXEL_THRESHOLD:
+            return 'green'
+        else:
+            return 'unknown'
+
+
+
+
+
+
+def main(args=None):
+>>>>>>> Stashed changes
     rclpy.init(args=args)
 
     node = None

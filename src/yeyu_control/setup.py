@@ -32,6 +32,8 @@ setup(
             'driving_node = yeyu_control.driving_node:main',
             'function_node = yeyu_control.function_node:main',
             'main_node = yeyu_control.main_node:main',
+            'signal_test_node = yeyu_control.signal_test_node:main',
+            'driving_waypoint_node = yeyu_control.driving_waypoint_node:main',
 
 
         ],
