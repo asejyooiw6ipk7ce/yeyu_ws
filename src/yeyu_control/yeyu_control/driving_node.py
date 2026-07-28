@@ -134,7 +134,7 @@ class DrivingNode(Node):
  
         # --- 5. 초기 상태: 첫 웨이포인트(직각주차)로 출발 ---
         self.mode = DrivingMode.NAV_TO_PARKING
-        self.send_waypoint(self.waypoints[0])   # ①
+        #self.send_waypoint(self.waypoints[0])   # ①
 
        # ================= 파라미터 =================
     def _declare_parking_parameters(self):
