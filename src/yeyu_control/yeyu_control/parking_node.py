@@ -158,7 +158,7 @@ class DrivingNode(Node):
         self.declare_parameter('marker_lost_timeout_sec', 2.0)  # 0.7 -> 2
         self.declare_parameter('stale_stop_timeout_sec', 0.8)   # 0.25 -> 0.8
         self.declare_parameter('recovery_backup_time_sec', 1.20)
-        self.declare_parameter('max_retry_count', 10)  #3은 너무 순식간에 끝나서 더 늘림
+        self.declare_parameter('max_retry_count', 50)  #3은 너무 순식간에 끝나서 더 늘림
         self.declare_parameter('max_parking_time_sec', 60.0)
         self.declare_parameter('enable_debug_image', True)
  
