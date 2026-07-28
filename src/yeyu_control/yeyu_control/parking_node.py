@@ -528,18 +528,18 @@ class DrivingNode(Node):
             self._start_parking_recovery(lost_reason)  # 후진+재탐색 모드로
             return None
 
-        observation_age = self._elapsed(self.last_marker_time)
+        observation_age = self._elapsed(self.last_marker_time)    # ← 마지막으로 갱신된 지 몇 초 됐나
 
-        if observation_age > self.marker_lost_timeout_sec:   # 완전히 놓침 (2초 이상 안 보임)
+        if observation_age > self.marker_lost_timeout_sec:   # 2초 넘게 안 갱신됐으면 완전히 놓친 것
             self.pub_cmd.publish(Twist())
             self._start_parking_recovery(lost_reason)
             return None
 
-        if observation_age > self.stale_stop_timeout_sec:    # 잠깐 안 보임 (0.8초 이상)
+        if observation_age > self.stale_stop_timeout_sec:    # 0.8초 넘게 안 갱신됐으면 살짝 끊긴 것
             self.pub_cmd.publish(Twist())      # 일단 정지만 하고 대기 (recovery는 안 감)
             return None
 
-        return self.latest_observation    # 정상, 값 반환
+        return self.latest_observation    # 최근에(0.8초 이내에) 갱신됐으면 정상 값 반환
 
 
     # [ 주차 메인 루프 ; 상태보고 -> 타임아웃 체크 -> 핸들러 함수 실행]
@@ -554,7 +554,7 @@ class DrivingNode(Node):
                 self._transition_parking(ParkingState.FAILED, 'max parking time exceeded')
 
         if self.parking_state == ParkingState.DONE:
-            return  # 이미 완료 처리됨 (on_parking_done에서 다음 웨이포인트로 이미 이동함)
+            return  # 이미 완료 처리됨 (on_parking_done에서 mode를 NAV_TO_SIGNAL로 변경)
  
         if self.parking_state == ParkingState.FAILED:
             self.pub_cmd.publish(Twist())
@@ -707,7 +707,7 @@ class DrivingNode(Node):
 
         self.pub_status.publish(msg)
 
-    # 주차완료 후 다음 경유점 이동 + mode를 NAV_TO_SIGNAL로
+    # 주차완료 후 mode를 NAV_TO_SIGNAL로
     def _on_parking_done(self):
         """
         주차 완료 시 호출. 다음 웨이포인트(경유점2)로 이동.
