@@ -93,7 +93,7 @@ class DrivingNode(Node):
     
         self.parking_state = ParkingState.SEARCH_MARKER
         self.parking_state_enter_time = self.get_clock().now()
-
+        self.parking_start_time = self.get_clock().now()  
 
         self.parking_retry_count = 0
 
@@ -125,8 +125,9 @@ class DrivingNode(Node):
         self.create_timer(1.0 / 10.0, self.parking_control_loop)
  
         # --- 5. 초기 상태: 첫 웨이포인트(직각주차)로 출발 ---
-        self.mode = DrivingMode.NAV_TO_PARKING
+        #self.mode = DrivingMode.NAV_TO_PARKING
         self.mode = DrivingMode.PARKING   #테스트
+        self._reset_parking_state()
         #self.send_waypoint(self.waypoints[0])   # ①
 
        # ================= 파라미터 =================
