@@ -647,7 +647,7 @@ class DrivingNode(Node):
 
     def publish_parking_state(self) -> None:
         msg = DrivingStatus()
-        msg.mode = self.mode.value   # DrivingMode enum이 .value로 문자열 나오는지 확인 필요
+        msg.mode = self.mode.name
 
         if self.parking_state == ParkingState.DONE:
             msg.result = 'PASS'
