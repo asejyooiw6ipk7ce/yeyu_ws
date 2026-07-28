@@ -85,14 +85,21 @@ class DrivingNode(Node):
         self._load_parking_parameters()
  
         self.bridge = CvBridge()
+
         self.camera_matrix: Optional[np.ndarray] = None
         self.dist_coeffs: Optional[np.ndarray] = None
+
         self.latest_observation: Optional[ArucoObservation] = None
         self.last_marker_time = self.get_clock().now() - Duration(seconds=999.0)
+
+
  
         self.parking_state = ParkingState.SEARCH_MARKER
         self.parking_state_enter_time = self.get_clock().now()
+
+
         self.parking_retry_count = 0
+
         self.last_tracking_angular_z = 0.0
  
         self.aruco_dict, self.aruco_params, self.aruco_detector = self._create_aruco_detector(
@@ -106,8 +113,19 @@ class DrivingNode(Node):
             depth=1,
         )
  
-        self.create_subscription(Image, self.image_topic, self.on_camera, sensor_qos)
-        self.create_subscription(CameraInfo, self.camera_info_topic, self.on_camera_info, sensor_qos)
+        self.create_subscription(
+            Image, 
+            self.image_topic, 
+            self.on_camera, 
+            sensor_qos
+        )
+
+        self.create_subscription(
+            CameraInfo, 
+            self.camera_info_topic, 
+            self.on_camera_info, 
+            sensor_qos
+        )
  
         # 주차 제어 루프 (10Hz). mode가 PARKING일 때만 실제로 동작함.
         self.create_timer(1.0 / 10.0, self.parking_control_loop)
