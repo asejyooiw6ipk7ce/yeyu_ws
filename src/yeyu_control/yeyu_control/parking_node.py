@@ -329,6 +329,43 @@ class DrivingNode(Node):
             self.dist_coeffs = np.array(msg.d, dtype=np.float64)
             self.get_logger().info('CameraInfo received. ArUco pose estimation enabled.')
  
+    # 카메라가 실제로 어떤 인코딩(픽셀 포맷)으로 이미지를 보내든 bgr8로 바꾸기 위한 변환표.
+    # 예전에는 cv_bridge에게 무조건 'bgr8'로 바꿔달라고 요청했는데,
+    # 카메라(camera_ros)가 bgr8이 아닌 다른 포맷(bayer 등)으로 보내면
+    # cv_bridge가 변환에 실패해서 예외를 던지고, on_camera가 바로 return 되어
+    # 디버그 이미지 자체가 발행되지 않는 문제가 있었음.
+    # 그래서 원본 그대로(passthrough) 받은 뒤, 실제 인코딩을 보고
+    # 우리가 직접 bgr8로 변환하도록 바꿈.
+    _BAYER_CODES = {
+        'bayer_rggb8': cv2.COLOR_BayerRG2BGR,
+        'bayer_bggr8': cv2.COLOR_BayerBG2BGR,
+        'bayer_gbrg8': cv2.COLOR_BayerGB2BGR,
+        'bayer_grbg8': cv2.COLOR_BayerGR2BGR,
+    }
+
+    def _to_bgr8(self, frame: np.ndarray, encoding: str) -> Optional[np.ndarray]:
+        # msg.encoding에 적힌 실제 포맷 이름을 보고 bgr8로 변환하는 함수.
+        # (passthrough로 받으면 cv_bridge가 변환을 안 해주기 때문에 여기서 우리가 직접 해줘야 함)
+        enc = encoding.lower()
+
+        if enc == 'bgr8':
+            return frame  # 이미 원하는 포맷이면 그대로 반환
+        if enc == 'bgra8':
+            return cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
+        if enc == 'rgb8':
+            return cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+        if enc == 'rgba8':
+            return cv2.cvtColor(frame, cv2.COLOR_RGBA2BGR)
+        if enc == 'mono8':
+            return cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+        if enc in self._BAYER_CODES:
+            return cv2.cvtColor(frame, self._BAYER_CODES[enc])
+
+        # 위 목록에 없는 포맷이면 변환 방법을 모르니, 경고를 남기고 None을 반환해서
+        # 호출한 쪽(on_camera)이 이번 프레임 처리를 건너뛰게 함
+        self.get_logger().warn(f'지원하지 않는 image encoding: {encoding}')
+        return None
+
     def on_camera(self, msg: Image) -> None:
         # -------------------------------------------------------------
         # TODO(향후 구현 예정): 신호등 대기 / 가속 구간 로직
@@ -362,11 +399,21 @@ class DrivingNode(Node):
             return  # 주차 모드가 아니면(신호등/가속 로직 미구현) 인식할 필요 없음
  
         try:
-            frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+            # desired_encoding='bgr8'로 강제 변환을 요청하면, 카메라가 bgr8이 아닌
+            # 포맷(bayer 등)으로 보낼 경우 cv_bridge가 변환을 못 해서 예외를 던짐.
+            # 'passthrough'는 변환 없이 원본 그대로 받아오므로 여기서는 항상 성공하고,
+            # 실제 bgr8 변환은 밑에서 우리가 직접 처리함
+            frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough')
         except CvBridgeError as exc:
             self.get_logger().warn(f'cv_bridge conversion failed: {exc}')
             return
- 
+
+        # 원본 포맷(msg.encoding)을 보고 bgr8로 변환. 모르는 포맷이면 None이 반환되므로
+        # 이번 프레임은 처리하지 않고 다음 프레임을 기다림
+        frame = self._to_bgr8(frame, msg.encoding)
+        if frame is None:
+            return
+
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
  
         if self.aruco_detector is not None:
