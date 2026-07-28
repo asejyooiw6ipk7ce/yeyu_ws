@@ -50,7 +50,7 @@ class DrivingNode(Node):
         self.current_goal_handle = None
 
         # --- 3. 구독/발행 ---
-        self.create_subscription(LaserScan, '/scan', self.on_lidar, 10)
+        # self.create_subscription(LaserScan, '/scan', self.on_lidar, 10)
         self.create_subscription(Image, '/camera/image_raw', self.on_camera, 10)
         self.pub_led = self.create_publisher(String, '/led_command', 10)
         self.pub_cmd = self.create_publisher(Twist, '/cmd_vel', 10)
@@ -58,8 +58,11 @@ class DrivingNode(Node):
         self.image_pub = self.create_publisher(Image, '/camera/image_flipped', 10)
 
         # --- 4. 초기 상태: 첫 웨이포인트(직각주차)로 출발 ---
-        self.mode = DrivingMode.NAV_TO_START
-        self.send_waypoint(self.waypoints[0])   # ①
+        # self.mode = DrivingMode.NAV_TO_START
+        # self.send_waypoint(self.waypoints[0])   # ①
+
+        self.mode = DrivingMode.SIGNAL_WAIT
+        self.wp_index = 2
 
         # --- CvBridge: ROS Image <-> OpenCV(np.ndarray) 변환기 ---
         self.bridge = CvBridge()
@@ -185,19 +188,20 @@ class DrivingNode(Node):
             return
         
         flipped = cv2.flip(cv_image, -1)
+
         out_msg = self.bridge.cv2_to_imgmsg(flipped, encoding='bgr8')
         out_msg.header = msg.header
         self.image_pub.publish(out_msg)
 
         if self.mode == DrivingMode.PARKING:
-            pose = detect_aruco_pose(flipped)
+            pose = self.detect_aruco_pose(flipped)
             if pose is not None and aligned(pose):
                 self.wp_index = 2
                 self.send_waypoint(self.waypoints[2])                  # ⑤
                 self.mode = DrivingMode.NAV_TO_SIGNAL
 
         elif self.mode == DrivingMode.NAV_TO_SIGNAL:
-            if reached_stop_line():                                     # ⑥
+            if self.reached_stop_line():                                     # ⑥
                 self.pause_nav()
                 self.mode = DrivingMode.SIGNAL_WAIT
 
@@ -209,15 +213,25 @@ class DrivingNode(Node):
                     self.green_count =0
                     self.mode = DrivingMode.NAV_TO_ACCEL
                     self.wp_index = 3
-                    self.resume_nav(self.waypoints[3])                  # ⑧
+                    self.send_waypoint(self.waypoints[3])                  # ⑧
                     
             else:
                 self.green_count = 0
 
         elif self.mode == DrivingMode.NAV_TO_ACCEL:
-            if detect_speed_sign(flipped):                                 # ⑨
+            if self.detect_speed_sign(flipped):                                 # ⑨
                 self.mode = DrivingMode.ACCEL_ZONE
                 self.accelerate_to(0.2)
+
+    def detect_aruco_pose(self, cv_image):
+        return 
+
+    def reached_stop_line(self):
+            return
+
+    def detect_speed_sign(self, cv_image):
+            return
+    
 
 
     def detect_signal_color(self, cv_image):
@@ -226,10 +240,11 @@ class DrivingNode(Node):
 
         hsv = cv2.cvtColor(cv_image, cv2.COLOR_BGR2HSV)
 
-        green_mask = cv2.inRange(hsv, self.GREEN_LOWER, self.GREEN_UPPER)
-        green_count = cv2.countNonZero(green_mask)
+        mask = cv2.inRange(hsv, self.GREEN_LOWER, self.GREEN_HIGHER)
+        count = cv2.countNonZero(mask)
+        self.get_logger().info(f'green_count={count}')
 
-        if green_count > self.SIGNAL_PIXEL_THRESHOLD:
+        if count > self.SIGNAL_PIXEL_THRESHOLD:
             return 'green'
         else:
             return 'unknown'
