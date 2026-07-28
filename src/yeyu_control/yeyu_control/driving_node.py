@@ -79,7 +79,8 @@ class DrivingNode(Node):
         # self.create_subscription(Image, '/camera/image_raw', self.on_camera, 10)
         self.pub_led = self.create_publisher(String, '/led_command', 10)
         self.pub_cmd = self.create_publisher(Twist, '/cmd_vel', 10)
-        self.debug_pub = self.create_publisher(CompressedImage, '/parking_debug_image', 10)
+        self.debug_pub = self.create_publisher(Image, '/parking_debug_image', 10)
+        #self.debug_pub = self.create_publisher(CompressedImage, '/parking_debug_image', 10)
         self.pub_status = self.create_publisher(DrivingStatus, '/driving_status', 10)
 
         # --- 4. T자 주차(ArUco) 파라미터 ---
@@ -134,6 +135,7 @@ class DrivingNode(Node):
  
         # --- 5. 초기 상태: 첫 웨이포인트(직각주차)로 출발 ---
         self.mode = DrivingMode.NAV_TO_PARKING
+        self.mode = DrivingMode.PARKING   #테스트
         #self.send_waypoint(self.waypoints[0])   # ①
 
        # ================= 파라미터 =================
@@ -401,12 +403,12 @@ class DrivingNode(Node):
         if self.enable_debug_image:
             debug_frame = self._draw_debug_image(frame, corners, ids, observation, selected_index)
             try:
-                debugout_msg = self.bridge.cv2_to_compressed_imgmsg(debug_frame, dst_format='jpg')
+                debugout_msg = self.bridge.cv2_to_imgmsg(debug_frame, encoding='bgr8')
                 debugout_msg.header = msg.header
                 self.debug_pub.publish(debugout_msg)
             except CvBridgeError as exc:
                 self.get_logger().warn(f'debug image publish failed: {exc}')
- 
+        
     def _create_aruco_detector(self, dictionary_name: str):
         if not hasattr(cv2, 'aruco'):
             raise RuntimeError('cv2.aruco 모듈이 없습니다. OpenCV 설치 상태를 확인하세요.')
