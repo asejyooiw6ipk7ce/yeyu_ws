@@ -139,7 +139,7 @@ class DrivingNode(Node):
 
        # ================= 파라미터 =================
     def _declare_parking_parameters(self):      # ros2 param set으로 실행 중에 바꿀 수 있게 해줌
-        self.declare_parameter('image_topic', '/camera/image_raw/Compressed')
+        self.declare_parameter('image_topic', '/camera/image_raw/compressed')
         self.declare_parameter('camera_info_topic', '/camera/camera_info')
  
         self.declare_parameter('aruco_dictionary', 'DICT_4X4_50')
