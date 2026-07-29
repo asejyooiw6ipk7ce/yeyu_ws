@@ -168,6 +168,8 @@ class DrivingNode(Node):
         self.declare_parameter('max_retry_count', 50)  #3은 너무 순식간에 끝나서 더 늘림
         self.declare_parameter('max_parking_time_sec', 60.0)
         self.declare_parameter('enable_debug_image', True)
+
+        self.declare_parameter('enable_motion', True)  # False면 cmd_vel을 발행하지 않음(모션 비활성화)
  
     def _load_parking_parameters(self):
         self.image_topic = self.get_parameter('image_topic').value
@@ -195,6 +197,8 @@ class DrivingNode(Node):
         self.max_retry_count = int(self.get_parameter('max_retry_count').value)
         self.max_parking_time_sec = float(self.get_parameter('max_parking_time_sec').value)
         self.enable_debug_image = self._get_bool_parameter('enable_debug_image')
+
+        self.enable_motion = self._get_bool_parameter('enable_motion')
 
     def _get_bool_parameter(self, name: str) -> bool:
         value = self.get_parameter(name).value
@@ -522,19 +526,19 @@ class DrivingNode(Node):
         lost_reason: str
     ) -> Optional[ArucoObservation]:
         if self.latest_observation is None:
-            self.pub_cmd.publish(Twist())      # 정지
+            self._publish_cmd(Twist())      # 정지
             self._start_parking_recovery(lost_reason)  # 후진+재탐색 모드로
             return None
 
         observation_age = self._elapsed(self.last_marker_time)    # ← 마지막으로 갱신된 지 몇 초 됐나
 
         if observation_age > self.marker_lost_timeout_sec:   # 2초 넘게 안 갱신됐으면 완전히 놓친 것
-            self.pub_cmd.publish(Twist())
+            self._publish_cmd(Twist())
             self._start_parking_recovery(lost_reason)
             return None
 
         if observation_age > self.stale_stop_timeout_sec:    # 0.8초 넘게 안 갱신됐으면 살짝 끊긴 것
-            self.pub_cmd.publish(Twist())      # 일단 정지만 하고 대기 (recovery는 안 감)
+            self._publish_cmd(Twist())      # 일단 정지만 하고 대기 (recovery는 안 감)
             return None
 
         return self.latest_observation    # 최근에(0.8초 이내에) 갱신됐으면 정상 값 반환
@@ -555,7 +559,7 @@ class DrivingNode(Node):
             return  # 이미 완료 처리됨 (on_parking_done에서 mode를 NAV_TO_SIGNAL로 변경)
  
         if self.parking_state == ParkingState.FAILED:
-            self.pub_cmd.publish(Twist())
+            self._publish_cmd(Twist())
             return
 
         # 지금 상태에 맞는 핸들러 함수 호출
@@ -603,7 +607,7 @@ class DrivingNode(Node):
  
         cmd = Twist()
         cmd.angular.z = angular_z
-        self.pub_cmd.publish(cmd)
+        self._publish_cmd(cmd)
 
     # [ 좌우/각도 정렬 ]
     def _handle_parking_align(self):
@@ -618,7 +622,7 @@ class DrivingNode(Node):
         )
         if aligned:
             self._transition_parking(ParkingState.FINAL_APPROACH, 'axis aligned')   # 좌우 오차,각도 오차 둘 다 통과면 다음단계
-            self.pub_cmd.publish(Twist())
+            self._publish_cmd(Twist())
             return
  
         angular_z = self._clamp(-self.k_bearing * obs.bearing_rad, -0.5, 0.5) # 각도 오차에 비례해서 외전 속도 계산
@@ -627,7 +631,7 @@ class DrivingNode(Node):
         cmd = Twist()
         cmd.linear.x = linear_x
         cmd.angular.z = angular_z
-        self.pub_cmd.publish(cmd)
+        self._publish_cmd(cmd)
         self.last_tracking_angular_z = angular_z
 
     # [ 목표 거리까지 직진 접근 ]
@@ -644,7 +648,7 @@ class DrivingNode(Node):
 
         # 목표거리에 도달하면 완료 처리
         if obs.z_m <= self.parking_stop_distance_m:
-            self.pub_cmd.publish(Twist())
+            self._publish_cmd(Twist())
             self._transition_parking(ParkingState.DONE, 'parking distance reached')
             self._on_parking_done()
             return
@@ -659,7 +663,7 @@ class DrivingNode(Node):
         cmd = Twist()
         cmd.linear.x = linear_x
         cmd.angular.z = angular_z
-        self.pub_cmd.publish(cmd)
+        self._publish_cmd(cmd)
 
     # [ 재시도 카운트 올리고 RECOVERY로 전환 ]
     def _start_parking_recovery(self, reason: str):
@@ -674,11 +678,11 @@ class DrivingNode(Node):
         if elapsed < self.recovery_backup_time_sec:
             cmd = Twist()
             cmd.linear.x = -self.max_reverse_speed_mps
-            self.pub_cmd.publish(cmd)
+            self._publish_cmd(cmd)
             return
 
         # 재시도 횟수 다 썼으면 FAILED , 아니면 다시 탐색(SEARCH_MARKER)
-        self.pub_cmd.publish(Twist())
+        self._publish_cmd(Twist())
         if self.parking_retry_count >= self.max_retry_count:
             self._transition_parking(ParkingState.FAILED, 'retry count exceeded')
             return
@@ -704,6 +708,13 @@ class DrivingNode(Node):
         msg.retry_count = self.parking_retry_count
 
         self.pub_status.publish(msg)
+
+    def _publish_cmd(self, cmd: Twist) -> None:
+        """실제 cmd_vel 발행 지점. enable_motion이 False면 무조건 정지 명령만 내보냄."""
+        if not self.enable_motion:
+            self.pub_cmd.publish(Twist())  # 항상 정지 상태 유지
+            return
+        self.pub_cmd.publish(cmd)
 
     # 주차완료 후 mode를 NAV_TO_SIGNAL로
     def _on_parking_done(self):
