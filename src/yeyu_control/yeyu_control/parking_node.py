@@ -366,10 +366,6 @@ class DrivingNode(Node):
             return        
     
         try:
-            # desired_encoding='bgr8'로 강제 변환을 요청하면, 카메라가 bgr8이 아닌
-            # 포맷(bayer 등)으로 보낼 경우 cv_bridge가 변환을 못 해서 예외를 던짐.
-            # 'passthrough'는 변환 없이 원본 그대로 받아오므로 여기서는 항상 성공하고,
-            # 실제 bgr8 변환은 밑에서 우리가 직접 처리함
             frame = self.bridge.compressed_imgmsg_to_cv2(msg, desired_encoding='bgr8')  
         except CvBridgeError as exc:
             self.get_logger().warn(f'cv_bridge conversion failed: {exc}')
@@ -409,6 +405,7 @@ class DrivingNode(Node):
                     x_m = float(tvec[0])    # 좌우거리(x)
                     z_m = float(tvec[2])    # 앞뒤거리(z)
                     bearing_rad = math.atan2(x_m, max(z_m, 1e-6))   # 로봇에서 봤을 때 마커가 몇 도 방향에 있는지
+                    self._logger
 
                     observation = ArucoObservation(
                         marker_id=int(ids_flat[idx]),
@@ -620,6 +617,8 @@ class DrivingNode(Node):
             self._on_parking_done()
             return
 
+
+        self.get_logger().info(f'===========obs.z_m ={obs.z_m}==================')
         # 목표거리 도달하지 않을 경우 이동 명령
         distance_error = obs.z_m - self.parking_stop_distance_m   # 남은 거리에 비례해서 속도 계산
         linear_x = max(self.min_approach_speed_mps, self.k_z * distance_error)   # 최소 속도 이하로는 안 내려가게
