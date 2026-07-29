@@ -8,11 +8,10 @@ from rclpy.action import ActionClient
 from rclpy.duration import Duration
 from nav2_msgs.action import NavigateToPose
 from action_msgs.msg import GoalStatus
-from sensor_msgs.msg import Image, LaserScan, CameraInfo
+from sensor_msgs.msg import CompressedImage, LaserScan, CameraInfo
 from geometry_msgs.msg import Twist
 from std_msgs.msg import String
 from yeyu_msgs.msg import DrivingStatus
-from sensor_msgs.msg import CompressedImage  
 from yeyu_control.driving_mode import DrivingMode
 from ament_index_python.packages import get_package_share_directory
 from cv_bridge import CvBridge
@@ -119,13 +118,12 @@ class DrivingNode(Node):
         )
 
         #self.create_subscription(LaserScan, '/scan', self.on_lidar, 10)                       #-> on_lidar 필요할 때 주석 해제
-        self.create_subscription(Image, self.image_topic, self.on_camera, sensor_qos)
+        self.create_subscription(CompressedImage, self.image_topic, self.on_camera, sensor_qos)
         self.create_subscription(CameraInfo, self.camera_info_topic, self.on_camera_info, sensor_qos)   # 카메라 정보(캘리브레이션)
 
         self.pub_led = self.create_publisher(String, '/led_command', 10)                       # LED제어 
-        self.pub_cmd = self.create_publisher(Twist, '/cmd_vel', 10)                            # 로봇 이동 명령
-        self.debug_pub = self.create_publisher(Image, '/parking_debug_image', 10)              # 디버그용 이미지
-        #self.debug_pub = self.create_publisher(CompressedImage, '/parking_debug_image', 10)
+        self.pub_cmd = self.create_publisher(Twist, '/cmd_vel', 10)                            # 로봇 이동 명령     
+        self.debug_pub = self.create_publisher(CompressedImage, '/parking_debug_image', 10) # 디버그용 이미지
         self.pub_status = self.create_publisher(DrivingStatus, '/driving_status', 10)          # 상태 보고
         #self.image_pub = self.create_publisher(Image, '/camera/image_flipped', 10)
  
@@ -396,7 +394,7 @@ class DrivingNode(Node):
             # 포맷(bayer 등)으로 보낼 경우 cv_bridge가 변환을 못 해서 예외를 던짐.
             # 'passthrough'는 변환 없이 원본 그대로 받아오므로 여기서는 항상 성공하고,
             # 실제 bgr8 변환은 밑에서 우리가 직접 처리함
-            frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough')  
+            frame = self.bridge.compressed_imgmsg_to_cv2(msg, desired_encoding='passthrough')  
         except CvBridgeError as exc:
             self.get_logger().warn(f'cv_bridge conversion failed: {exc}')
             return
@@ -460,7 +458,7 @@ class DrivingNode(Node):
         if self.enable_debug_image:
             debug_frame = self._draw_debug_image(frame, corners, ids, observation, selected_index)
             try:
-                debugout_msg = self.bridge.cv2_to_imgmsg(debug_frame, encoding='bgr8')
+                debugout_msg = self.bridge.cv2_to_compressed_imgmsg(debug_frame, encoding='bgr8')
                 debugout_msg.header = msg.header
                 self.debug_pub.publish(debugout_msg)
             except CvBridgeError as exc:
