@@ -610,6 +610,8 @@ class DrivingNode(Node):
             self._transition_parking(ParkingState.ALIGN_AXIS, 'drifted out of alignment')
             return
 
+        self.get_logger().info(f'===========obs.z_m ={obs.z_m}==================')
+
         # 목표거리에 도달하면 완료 처리
         if obs.z_m <= self.parking_stop_distance_m:
             self._publish_cmd(Twist())
@@ -618,7 +620,6 @@ class DrivingNode(Node):
             return
 
 
-        self.get_logger().info(f'===========obs.z_m ={obs.z_m}==================')
         # 목표거리 도달하지 않을 경우 이동 명령
         distance_error = obs.z_m - self.parking_stop_distance_m   # 남은 거리에 비례해서 속도 계산
         linear_x = max(self.min_approach_speed_mps, self.k_z * distance_error)   # 최소 속도 이하로는 안 내려가게
