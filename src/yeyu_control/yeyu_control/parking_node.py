@@ -392,7 +392,12 @@ class DrivingNode(Node):
  
         if self.mode != DrivingMode.PARKING:
             return  # 주차 모드가 아니면(신호등/가속 로직 미구현) 인식할 필요 없음
- 
+
+        # 카메라 초기화 중 종종 발생하는 buf(카메라 프레임) 비여있어서 생기는 cv2.error 오류 방지
+        if not msg.data:
+            self.get_logger().warn('empty compressed image data, skipping frame')
+            return        
+    
         try:
             # desired_encoding='bgr8'로 강제 변환을 요청하면, 카메라가 bgr8이 아닌
             # 포맷(bayer 등)으로 보낼 경우 cv_bridge가 변환을 못 해서 예외를 던짐.
