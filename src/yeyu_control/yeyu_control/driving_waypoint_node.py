@@ -8,7 +8,7 @@ from rclpy.action import ActionClient
 from rclpy.duration import Duration
 from nav2_msgs.action import NavigateToPose
 from action_msgs.msg import GoalStatus
-from sensor_msgs.msg import Image, LaserScan
+from sensor_msgs.msg import CompressedImage, LaserScan
 from geometry_msgs.msg import Twist
 from std_msgs.msg import String
 from yeyu_msgs.msg import DrivingStatus
@@ -51,11 +51,11 @@ class DrivingNode(Node):
 
         # --- 3. 구독/발행 ---
         # self.create_subscription(LaserScan, '/scan', self.on_lidar, 10)
-        self.create_subscription(Image, '/camera/image_raw', self.on_camera, 10)
+        self.create_subscription(CompressedImage, '/camera/image_raw', self.on_camera, 10)
         self.pub_led = self.create_publisher(String, '/led_command', 10)
         self.pub_cmd = self.create_publisher(Twist, '/cmd_vel', 10)
         self.pub_status = self.create_publisher(DrivingStatus, '/driving_status', 10)
-        self.image_pub = self.create_publisher(Image, '/camera/image_flipped', 10)
+        self.image_pub = self.create_publisher(CompressedImage, '/camera/image_flipped', 10)
 
         # --- 4. 초기 상태: 첫 웨이포인트(직각주차)로 출발 ---
         # self.mode = DrivingMode.NAV_TO_START
@@ -181,7 +181,7 @@ class DrivingNode(Node):
 
     def on_camera(self, msg):
         try: 
-            cv_image = self.bridge.imgmsg_to_cv2(msg , desired_encoding= 'bgr8')
+            cv_image = self.bridge.compressed_imgmsg_to_cv2(msg , desired_encoding= 'bgr8')
         except Exception as e :
             self.get_logger().warn(f'cv_bridge 변환 실패: {e}')
 
@@ -189,7 +189,7 @@ class DrivingNode(Node):
         
         flipped = cv2.flip(cv_image, -1)
 
-        out_msg = self.bridge.cv2_to_imgmsg(flipped, encoding='bgr8')
+        out_msg = self.bridge.cv2_to_compressed_imgmsg(flipped, encoding='bgr8')
         out_msg.header = msg.header
         self.image_pub.publish(out_msg)
 
@@ -225,6 +225,7 @@ class DrivingNode(Node):
 
     def detect_aruco_pose(self, cv_image):
         return 
+    
 
     def reached_stop_line(self):
             return
