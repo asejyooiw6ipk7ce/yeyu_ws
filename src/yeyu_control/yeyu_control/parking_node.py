@@ -123,7 +123,7 @@ class DrivingNode(Node):
 
         self.pub_led = self.create_publisher(String, '/led_command', 10)                       # LED제어 
         self.pub_cmd = self.create_publisher(Twist, '/cmd_vel', 10)                            # 로봇 이동 명령     
-        self.debug_pub = self.create_publisher(CompressedImage, '/parking_debug_image', 10) # 디버그용 이미지
+        self.debug_pub = self.create_publisher(CompressedImage, '/parking_debug_image', sensor_qos) # 디버그용 이미지
         self.pub_status = self.create_publisher(DrivingStatus, '/driving_status', 10)          # 상태 보고
         #self.image_pub = self.create_publisher(Image, '/camera/image_flipped', 10)
  
@@ -139,7 +139,7 @@ class DrivingNode(Node):
 
        # ================= 파라미터 =================
     def _declare_parking_parameters(self):      # ros2 param set으로 실행 중에 바꿀 수 있게 해줌
-        self.declare_parameter('image_topic', '/camera/image_raw')
+        self.declare_parameter('image_topic', '/camera/image_raw/Compressed')
         self.declare_parameter('camera_info_topic', '/camera/camera_info')
  
         self.declare_parameter('aruco_dictionary', 'DICT_4X4_50')
