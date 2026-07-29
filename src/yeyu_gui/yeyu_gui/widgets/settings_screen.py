@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QLineEdit,
-    QPushButton, QTabWidget
+    QPushButton, QTabWidget, QMessageBox
 )
 from PyQt5.QtCore import Qt
 from .. import theme
+from .. import settings_manager
 from .card import Card
 
 
@@ -36,7 +37,7 @@ def _field(label, value, suffix=""):
 
     container = QWidget()
     container.setLayout(wrap)
-    return container
+    return container, edit  # 화면에 보여줄 위젯 반환 , QLineEdit 자체 같이 반환(edit.text()로 사용자가 입력한 값을 꺼내기 위해)
 
 
 class SettingsScreen(QWidget):
@@ -44,6 +45,12 @@ class SettingsScreen(QWidget):
         super().__init__(parent)
         outer = QVBoxLayout(self)
         outer.setContentsMargins(28, 28, 28, 28)
+
+        # 현재 저장된 값(없으면 기본값)을 먼저 불러온다.
+        self._settings = settings_manager.load_settings()
+
+        # 탭별 QLineEdit 참조를 여기에 모아둔다. {"comm": {"ros_domain_id": QLineEdit, ...}, ...}
+        self._edits = {"comm": {}, "params": {}, "storage": {}}
 
         card = Card()
 
@@ -80,6 +87,8 @@ class SettingsScreen(QWidget):
             QPushButton:hover {{ background: #2A303B; }}
             """
         )
+        save_btn.clicked.connect(self._on_save)   # 저장 버튼 기능 연결
+
         reset_btn = QPushButton("기본값 복원")
         reset_btn.setCursor(Qt.PointingHandCursor)
         reset_btn.setStyleSheet(
@@ -91,48 +100,88 @@ class SettingsScreen(QWidget):
             QPushButton:hover {{ background: {theme.BG}; }}
             """
         )
+
+        reset_btn.clicked.connect(self._on_reset) # 기본값 복원 버튼 기능 추가 
+
         btn_row.addWidget(save_btn)
         btn_row.addWidget(reset_btn)
         btn_row.addStretch()
+
+        # "✓ 저장됨" , "✓ 기본값으로 복원됨" 띄워줌
+        self._status_label = QLabel("")
+        self._status_label.setStyleSheet(
+            f"font-family: {theme.FONT_UI}; font-size: 12px; color: #16A34A;"
+        )
+        btn_row.addWidget(self._status_label)
 
         card.layout_().addLayout(btn_row)
         outer.addWidget(card)
         outer.addStretch()
 
-    @staticmethod
-    def _grid_tab(fields):
+    def _grid_tab(self, tab_key, fields):
+        """fields: [(설정_키, 라벨, 단위), ...]"""
         w = QWidget()
         grid = QGridLayout(w)
         grid.setContentsMargins(0, 16, 0, 0)
         grid.setSpacing(16)
-        for i, (label, value, suffix) in enumerate(fields):
-            grid.addWidget(_field(label, value, suffix), i // 2, i % 2)
+        for i, (settings_key, label, suffix) in enumerate(fields):
+            current_value = str(self._settings.get(tab_key, {}).get(settings_key, ""))
+            container, edit = _field(label, current_value, suffix)
+            self._edits[tab_key][settings_key] = edit
+            grid.addWidget(container, i // 2, i % 2)
         return w
 
     def _comm_tab(self):
-        return self._grid_tab([
-            ("ROS_DOMAIN_ID", "30", ""),
-            ("로봇 IP 주소", "192.168.0.30", ""),
-            ("원격 PC IP 주소", "192.168.0.10", ""),
-            ("카메라 토픽", "/camera/image_raw", ""),
-            ("상태 토픽", "/driving_status", ""),
-            ("cmd_vel 토픽", "/cmd_vel", ""),
-        ])
+        return self._grid_tab("comm", [
+            ("ros_domain_id", "ROS_DOMAIN_ID", ""),
+            ("robot_ip", "로봇 IP 주소", ""),
+            ("remote_pc_ip", "원격 PC IP 주소", ""),
+            ("camera_topic", "카메라 토픽", ""),
+            ("status_topic", "상태 토픽", ""),
+            ("cmd_vel_topic", "cmd_vel 토픽", ""),
+        ])   # 값은 settings_manager.load_settings()로 불러온 yaml파일에서 채워짐
 
     def _params_tab(self):
-        return self._grid_tab([
-            ("라인 이탈 판정 프레임 수 (TBD-01)", "3", "frame"),
-            ("경유점 도착 허용 오차 (TBD-02)", "0.03", "m"),
-            ("직각주차 좌우 허용 오차 (TBD-03)", "0.035", "m"),
-            ("신호 판별 연속 프레임 (TBD-04)", "3", "frame"),
-            ("규정 속도 (TBD-05)", "0.15", "m/s"),
-            ("코스별 최대 재시도 (TBD-06)", "3", "회"),
+        return self._grid_tab("params", [
+            ("line_lost_frames", "라인 이탈 판정 프레임 수 (TBD-01)", "frame"),
+            ("waypoint_tolerance", "경유점 도착 허용 오차 (TBD-02)", "m"),
+            ("parking_tolerance", "직각주차 좌우 허용 오차 (TBD-03)", "m"),
+            ("signal_confirm_frames", "신호 판별 연속 프레임 (TBD-04)", "frame"),
+            ("target_speed", "규정 속도 (TBD-05)", "m/s"),
+            ("max_retry", "코스별 최대 재시도 (TBD-06)", "회"),
         ])
 
     def _storage_tab(self):
-        return self._grid_tab([
-            ("저장 방식", "SQLite", ""),
-            ("로그 저장 경로", "/home/yeyu/logs", ""),
-            ("시험 결과 보관 기간", "30", "일"),
-            ("디버그 이미지 자동 저장", "사용", ""),
+        return self._grid_tab("storage", [
+            ("storage_type", "저장 방식", ""),
+            ("log_path", "로그 저장 경로", ""),
+            ("retention_days", "시험 결과 보관 기간", "일"),
+            ("auto_save_debug_image", "디버그 이미지 자동 저장", ""),
         ])
+
+    def _collect_values(self) -> dict:
+        """모든 QLineEdit에서 현재 입력된 값을 읽어 dict로 만든다."""
+        return {
+            tab_key: {key: edit.text() for key, edit in edits.items()}
+            for tab_key, edits in self._edits.items()
+        }
+
+    def _on_save(self):
+        data = self._collect_values()
+        settings_manager.save_settings(data)
+        self._settings = data
+        self._status_label.setText("✓ 저장됨")
+
+    def _on_reset(self):
+        confirm = QMessageBox.question(
+            self, "기본값 복원", "모든 설정을 기본값으로 되돌릴까요?",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No
+        )
+        if confirm != QMessageBox.Yes:
+            return
+        defaults = settings_manager.reset_to_default()
+        self._settings = defaults
+        for tab_key, edits in self._edits.items():
+            for key, edit in edits.items():
+                edit.setText(str(defaults.get(tab_key, {}).get(key, "")))
+        self._status_label.setText("✓ 기본값으로 복원됨")

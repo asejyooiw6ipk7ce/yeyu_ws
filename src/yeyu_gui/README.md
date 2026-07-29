@@ -5,28 +5,28 @@ PyQt5로 만든 데스크톱 GUI. 대시보드 / 실시간 모니터링 / 시험
 
 ## 우분투에서 실행하기
 
+이미 시스템에 PyQt5가 설치되어 있다면 (ROS2 워크스페이스에서 자주 그렇듯) venv 없이 바로 실행하면 됨:
+
 ```bash
-# 1. 압축 풀기
 unzip yeyu_gui.zip
-cd yeyu_gui_project
-
-# 2. 필요한 패키지 설치 (venv 권장)
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-
-# 3. 실행
+cd yeyu_gui
+python3 -c "import PyQt5"   # 에러 없으면 이미 설치된 것 → 바로 실행
 python3 main.py
 ```
 
-venv 없이 시스템 파이썬에 바로 설치하려면:
+PyQt5가 없다는 에러가 나면:
 ```bash
 pip install PyQt5 --break-system-packages
 python3 main.py
 ```
 
-ROS2 워크스페이스 안에서 실행할 경우, 이미 ROS2 설치 시 PyQt5가 함께 있을 수도 있으니
-`python3 -c "import PyQt5"` 로 먼저 확인해보고 없으면 위 명령으로 설치.
+여러 프로젝트를 오가며 패키지 버전 충돌이 걱정되는 경우에만 venv 사용 (선택):
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python3 main.py
+```
 
 ## 폴더 구조
 
@@ -35,6 +35,7 @@ main.py                        # 실행 진입점
 yeyu_gui/
 ├── theme.py                   # 색상·폰트·코스 구간(Stage) 정의
 ├── main_window.py             # 메인 윈도우 (사이드바 + 상단바 + 화면 전환)
+├── settings_manager.py        # 설정값 YAML 파일 저장/불러오기 (예정)
 └── widgets/
     ├── card.py                # 공통 카드 컨테이너
     ├── stage_stepper.py       # 구간 스테퍼 (LED 시퀀스 연동 시그니처 위젯)
@@ -45,6 +46,20 @@ yeyu_gui/
     ├── results_screen.py      # 시험 결과 화면 (UR-011)
     └── settings_screen.py     # 설정 화면 (통신/코스 파라미터/저장)
 ```
+
+## 설정값 저장 방식
+
+`SettingsScreen`의 값들(ROS_DOMAIN_ID, IP, 토픽 이름, 코스 파라미터 등)은 별도 데이터베이스 없이
+**YAML 파일 하나**로 저장/불러오기 함 (`~/.config/yeyu_gui/settings.yaml` 예정).
+
+- 이런 값들은 "현재 상태 하나"만 유지하면 되는 key-value 데이터라 DB가 필요 없음.
+- 반면 `ResultsScreen`처럼 시험 결과가 계속 쌓이는 데이터(행 단위로 누적)는 나중에 SQLite 같은
+  경량 DB로 관리하는 게 더 적합함 (설정값과는 성격이 다름).
+- 노드 실행 시 `ros2 launch` 파일에서 같은 YAML을 `--params-file`로 그대로 읽게 하면, 별도
+  통신 코드 없이도 GUI ↔ 노드가 초기 설정값을 공유할 수 있음.
+- 이후 `TBD-01`(라인 이탈 판정 프레임), `TBD-05`(규정 속도)처럼 **주행 중 실시간으로 바꾸고
+  싶은 값**이 생기면, 그 항목에 한해서만 ROS2 파라미터 서비스(`set_parameters`)를 추가로 붙여
+  실시간 반영이 되게 확장 가능. IP/토픽 이름처럼 노드 실행 전에 정해지는 값은 계속 YAML로 남음.
 
 ## 다음 단계 (ROS2 연동)
 
@@ -57,6 +72,8 @@ yeyu_gui/
    - `MonitorScreen`의 디버그 영상 → `/parking_debug_image` (`cv2_to_qimage` 변환 필요)
    - `MonitorScreen`의 버튼 → `/start_mission`, `/cancel_mission` 서비스 호출
    - `ResultsScreen` → 각 구간 완료 시 결과를 누적하는 별도 상태 관리 필요 (지금은 정적 데이터)
+4. **`settings_manager.py` 구현** — YAML 로드/저장 함수 작성 후 `SettingsScreen`의 저장 버튼과
+   화면 초기화 로직에 연결 (위 "설정값 저장 방식" 참고).
 
 ## 참고
 - `app.setStyle("Fusion")`을 사용해 우분투 배포판(GTK 테마 등)에 관계없이 항상 같은 룩 앤 필로 보이도록 함.
