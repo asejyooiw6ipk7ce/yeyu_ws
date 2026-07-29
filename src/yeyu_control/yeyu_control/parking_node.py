@@ -326,7 +326,7 @@ class DrivingNode(Node):
         if self.camera_matrix is None: # 최초 수신 시에만
             self.camera_matrix = np.array(msg.k, dtype=np.float64).reshape(3, 3)
             self.dist_coeffs = np.array(msg.d, dtype=np.float64)
-            self.get_logger().info(f'======={dist_coeffs} ======== CameraInfo received. ArUco pose estimation enabled.')
+            self.get_logger().info(f'======={self.dist_coeffs} ======== CameraInfo received. ArUco pose estimation enabled.')
 
     def on_camera(self, msg: CompressedImage) -> None:
         # -------------------------------------------------------------
