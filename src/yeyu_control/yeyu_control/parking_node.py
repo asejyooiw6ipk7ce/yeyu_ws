@@ -28,10 +28,14 @@ from cv_bridge import CvBridge, CvBridgeError
 
 
 NAV_ARRIVAL_TRANSITIONS = {
-    DrivingMode.NAV_TO_START: DrivingMode.NAV_TO_PARKING,
-    DrivingMode.NAV_TO_PARKING: DrivingMode.PARKING,
+    # DrivingMode.NAV_TO_START: DrivingMode.NAV_TO_PARKING,
+    # DrivingMode.NAV_TO_PARKING: DrivingMode.PARKING,
+    # DrivingMode.NAV_TO_SIGNAL: DrivingMode.SIGNAL_WAIT,
+    # DrivingMode.NAV_TO_ACCEL: DrivingMode.ACCEL_ZONE,
+    DrivingMode.NAV_TO_START: DrivingMode.NAV_TO_SIGNAL ,
     DrivingMode.NAV_TO_SIGNAL: DrivingMode.SIGNAL_WAIT,
     DrivingMode.NAV_TO_ACCEL: DrivingMode.ACCEL_ZONE,
+    DrivingMode.NAV_TO_PARKING: DrivingMode.PARKING,
 }
 
 class ParkingState(Enum):
@@ -323,43 +327,6 @@ class DrivingNode(Node):
             self.camera_matrix = np.array(msg.k, dtype=np.float64).reshape(3, 3)
             self.dist_coeffs = np.array(msg.d, dtype=np.float64)
             self.get_logger().info('CameraInfo received. ArUco pose estimation enabled.')
- 
-    # 카메라가 실제로 어떤 인코딩(픽셀 포맷)으로 이미지를 보내든 bgr8로 바꾸기 위한 변환표.
-    # 예전에는 cv_bridge에게 무조건 'bgr8'로 바꿔달라고 요청했는데,
-    # 카메라(camera_ros)가 bgr8이 아닌 다른 포맷(bayer 등)으로 보내면
-    # cv_bridge가 변환에 실패해서 예외를 던지고, on_camera가 바로 return 되어
-    # 디버그 이미지 자체가 발행되지 않는 문제가 있었음.
-    # 그래서 원본 그대로(passthrough) 받은 뒤, 실제 인코딩을 보고
-    # 우리가 직접 bgr8로 변환하도록 바꿈.
-    _BAYER_CODES = {
-        'bayer_rggb8': cv2.COLOR_BayerRG2BGR,
-        'bayer_bggr8': cv2.COLOR_BayerBG2BGR,
-        'bayer_gbrg8': cv2.COLOR_BayerGB2BGR,
-        'bayer_grbg8': cv2.COLOR_BayerGR2BGR,
-    }
-
-    # 카메라가 보내는 인코딩이 bgr8아닐 경우 bgr8로 변환하는 함수
-    def _to_bgr8(self, frame: np.ndarray, encoding: str) -> Optional[np.ndarray]:
-        # (passthrough로 받으면 cv_bridge가 변환을 안 해주기 때문에 여기서 우리가 직접 해줘야 함)
-        enc = encoding.lower()
-
-        if enc == 'bgr8':
-            return frame  # 이미 원하는 포맷이면 그대로 반환
-        if enc == 'bgra8':
-            return cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
-        if enc == 'rgb8':
-            return cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-        if enc == 'rgba8':
-            return cv2.cvtColor(frame, cv2.COLOR_RGBA2BGR)
-        if enc == 'mono8':
-            return cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
-        if enc in self._BAYER_CODES:      
-            return cv2.cvtColor(frame, self._BAYER_CODES[enc])
-
-        # 위 목록에 없는 포맷이면 변환 방법을 모르니, 경고를 남기고 None을 반환해서
-        # 호출한 쪽(on_camera)이 이번 프레임 처리를 건너뛰게 함
-        self.get_logger().warn(f'지원하지 않는 image encoding: {encoding}')
-        return None
 
     def on_camera(self, msg: CompressedImage) -> None:
         # -------------------------------------------------------------
@@ -408,11 +375,6 @@ class DrivingNode(Node):
             self.get_logger().warn(f'cv_bridge conversion failed: {exc}')
             return
 
-        # 원본 포맷(msg.encoding)을 보고 bgr8로 변환. 모르는 포맷이면 None이 반환되므로
-        # 이번 프레임은 처리하지 않고 다음 프레임을 기다림
-        frame = self._to_bgr8(frame, msg.encoding)
-        if frame is None:
-            return
 
         # [ 흑백으로 마커 검출 ]
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) 
