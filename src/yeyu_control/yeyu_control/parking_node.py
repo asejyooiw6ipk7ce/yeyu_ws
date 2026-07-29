@@ -147,7 +147,7 @@ class DrivingNode(Node):
         self.declare_parameter('camera_info_topic', '/camera/camera_info')
  
         self.declare_parameter('aruco_dictionary', 'DICT_4X4_50')
-        self.declare_parameter('target_marker_id', 4)          # 4번 칸 마커
+        self.declare_parameter('target_marker_id', 0)          # 4번 칸 마커
         self.declare_parameter('marker_size_m', 0.10)
  
         # 정렬/정지 목표
