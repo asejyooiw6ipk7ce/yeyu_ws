@@ -90,7 +90,7 @@ def generate_launch_description() -> LaunchDescription:
             TextSubstitution(text='file://'),
             EnvironmentVariable('HOME'),
             TextSubstitution(
-                text='/turtlebot3_ws/src/turtlebot3/turtlebot3_bringup/config/tb3_burger_picam2_640x480.yaml'
+                text='/yeyu_ws/src/yeyu_bringup/config/tb3_burger_picam2_640x480.yaml'
             ),
         ],
         description='URL of camera calibration YAML file'
