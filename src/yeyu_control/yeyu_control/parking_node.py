@@ -151,7 +151,7 @@ class DrivingNode(Node):
         self.declare_parameter('marker_size_m', 0.10)
  
         # 정렬/정지 목표
-        self.declare_parameter('parking_stop_distance_m', 0.18)     # 마커 벽에서 멈출 거리
+        self.declare_parameter('parking_stop_distance_m', 0.55)     # 마커 벽에서 멈출 거리
         self.declare_parameter('lateral_tolerance_m', 0.035)
         self.declare_parameter('bearing_tolerance_rad', 0.060)
  
