@@ -370,7 +370,7 @@ class DrivingNode(Node):
             # 포맷(bayer 등)으로 보낼 경우 cv_bridge가 변환을 못 해서 예외를 던짐.
             # 'passthrough'는 변환 없이 원본 그대로 받아오므로 여기서는 항상 성공하고,
             # 실제 bgr8 변환은 밑에서 우리가 직접 처리함
-            frame = self.bridge.compressed_imgmsg_to_cv2(msg, desired_encoding='passthrough')  
+            frame = self.bridge.compressed_imgmsg_to_cv2(msg, desired_encoding='bgr8')  
         except CvBridgeError as exc:
             self.get_logger().warn(f'cv_bridge conversion failed: {exc}')
             return
@@ -429,7 +429,7 @@ class DrivingNode(Node):
         if self.enable_debug_image:
             debug_frame = self._draw_debug_image(frame, corners, ids, observation, selected_index)
             try:
-                debugout_msg = self.bridge.cv2_to_compressed_imgmsg(debug_frame, encoding='bgr8')
+                debugout_msg = self.bridge.cv2_to_compressed_imgmsg(debug_frame,  dst_format='jpg')
                 debugout_msg.header = msg.header
                 self.debug_pub.publish(debugout_msg)
             except CvBridgeError as exc:
