@@ -151,7 +151,7 @@ class DrivingNode(Node):
         self.declare_parameter('marker_size_m', 0.10)
  
         # 정렬/정지 목표
-        self.declare_parameter('parking_stop_distance_m', 0.55)     # 마커 벽에서 멈출 거리
+        self.declare_parameter('parking_stop_distance_m', 0.18)     # 마커 벽에서 멈출 거리
         self.declare_parameter('lateral_tolerance_m', 0.035)
         self.declare_parameter('bearing_tolerance_rad', 0.060)
  
@@ -541,8 +541,12 @@ class DrivingNode(Node):
  
     # 마커 탐색
     def _handle_parking_search(self):
-        obs = self._get_tracking_observation('re-check during search')  # 못 찾으면
-        if obs is not None:
+        # obs = self._get_tracking_observation('re-check during search')  # 못 찾으면
+        # if obs is not None:
+        # SEARCH_MARKER에서 latest_observation이 None인 건 정상 상태이지, "놓친" 상태가 아니므로 RECOVERY를 트리거하면 안 됨.
+        obs = self.latest_observation
+        if obs is not None and self._elapsed(self.last_marker_time) <= self.marker_lost_timeout_sec:
+            self._publish_cmd(Twist())     # ALIGN_AXIS로 넘어가도 회전하던 명령이 천천히 멈춰서 마커를 놓침
             self._transition_parking(ParkingState.ALIGN_AXIS, 'marker acquired')  # 찾았으면 다음 단계로
             return
             
@@ -556,11 +560,11 @@ class DrivingNode(Node):
         else:
             initial_direction = 1.0
 
-        # 처음엔 2초, 그후엔 3초마다 방향 번갈아 회전
+        # 처음엔 2초, 그후엔 3->10초마다 방향 번갈아 회전 -> 그냥 똑같은 범위에만 있어서 마커를 못찾음
         if elapsed < 2.0:
             direction = initial_direction
         else:
-            search_phase = int((elapsed - 2.0) / 3.0)
+            search_phase = int((elapsed - 2.0) / 20.0)
             direction = (
                 -initial_direction
                 if search_phase % 2 == 0
@@ -611,6 +615,7 @@ class DrivingNode(Node):
             return
 
         self.get_logger().info(f'===========obs.z_m ={obs.z_m}==================')
+        self.get_logger().info(f'z={obs.z_m:.3f} x={obs.x_m:.3f} bearing={obs.bearing_rad:.3f}')
 
         # 목표거리에 도달하면 완료 처리
         if obs.z_m <= self.parking_stop_distance_m:
