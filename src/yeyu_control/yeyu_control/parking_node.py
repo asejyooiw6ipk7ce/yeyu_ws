@@ -357,7 +357,7 @@ class DrivingNode(Node):
         self.get_logger().warn(f'지원하지 않는 image encoding: {encoding}')
         return None
 
-    def on_camera(self, msg: Image) -> None:
+    def on_camera(self, msg: CompressedImage) -> None:
         # -------------------------------------------------------------
         # TODO(향후 구현 예정): 신호등 대기 / 가속 구간 로직
         # 아래는 원래 스텁 코드에 있던 구현으로, 주차(PARKING) 이후
