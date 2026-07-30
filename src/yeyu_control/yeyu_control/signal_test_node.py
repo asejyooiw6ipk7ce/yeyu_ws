@@ -10,9 +10,9 @@ class SignalColorTest(Node):
     def __init__(self):
         super().__init__('signal_color_test')
         self.bridge = CvBridge()
-        self.GREEN_LOWER = np.array([40, 80, 80])
-        self.GREEN_UPPER = np.array([85, 255, 255])
-        self.SIGNAL_PIXEL_THRESHOLD = 300
+        self.GREEN_LOWER = np.array([35, 40, 40])
+        self.GREEN_UPPER = np.array([90, 255, 255])
+        self.SIGNAL_PIXEL_THRESHOLD = 500
         self.create_subscription(Image, '/camera/image_raw', self.on_camera, 10)
         self.image_pub = self.create_publisher(Image, '/camera/image_flipped', 10)  # 추가
 
@@ -33,6 +33,11 @@ class SignalColorTest(Node):
 
 
         hsv = cv2.cvtColor(cv_image, cv2.COLOR_BGR2HSV)
+
+        h, w, _ = cv_image.shape
+        center_pixel = hsv[h//2, w//2]
+        self.get_logger().info(f'중앙 픽셀 HSV: {center_pixel}')   # 임시 디버그용
+
         mask = cv2.inRange(hsv, self.GREEN_LOWER, self.GREEN_UPPER)
         count = cv2.countNonZero(mask)
         self.get_logger().info(f'green_count={count}')
