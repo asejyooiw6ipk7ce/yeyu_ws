@@ -21,7 +21,9 @@ from launch.actions import DeclareLaunchArgument
 from launch.conditions import IfCondition
 from launch.launch_description import LaunchDescription
 from launch.substitutions import EnvironmentVariable
+from launch.substitutions import EnvironmentVariable
 from launch.substitutions import LaunchConfiguration
+from launch.substitutions import TextSubstitution
 from launch.substitutions import TextSubstitution
 
 from launch_ros.actions import ComposableNodeContainer
@@ -90,10 +92,11 @@ def generate_launch_description() -> LaunchDescription:
             TextSubstitution(text='file://'),
             EnvironmentVariable('HOME'),
             TextSubstitution(
-                text='/turtlebot3_ws/src/turtlebot3/turtlebot3_bringup/config/tb3_burger_picam2_640x480.yaml'
+                text='/yeyu_ws/src/yeyu_bringup/config/tb3_burger_picam2_640x480.yaml'
             ),
         ],
         description='URL of camera calibration YAML file'
+    )
 
     composable_nodes = [
         ComposableNode(
@@ -105,6 +108,8 @@ def generate_launch_description() -> LaunchDescription:
                 'width': width_param,
                 'height': height_param,
                 'format': format_param,
+                'camera_info_url': camera_info_url_param,
+                'frame_id': 'camera_optical_frame',
                 'camera_info_url': camera_info_url_param,
                 'frame_id': 'camera_optical_frame',
             }],
@@ -137,6 +142,7 @@ def generate_launch_description() -> LaunchDescription:
         use_image_view_launch_arg,
         width_launch_arg,
         height_launch_arg,
+        camera_info_url_launch_arg,
         camera_info_url_launch_arg,
         container,
     ])
