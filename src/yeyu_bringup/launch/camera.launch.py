@@ -21,7 +21,9 @@ from launch.actions import DeclareLaunchArgument
 from launch.conditions import IfCondition
 from launch.launch_description import LaunchDescription
 from launch.substitutions import EnvironmentVariable
+from launch.substitutions import EnvironmentVariable
 from launch.substitutions import LaunchConfiguration
+from launch.substitutions import TextSubstitution
 from launch.substitutions import TextSubstitution
 
 from launch_ros.actions import ComposableNodeContainer
@@ -108,6 +110,8 @@ def generate_launch_description() -> LaunchDescription:
                 'format': format_param,
                 'camera_info_url': camera_info_url_param,
                 'frame_id': 'camera_optical_frame',
+                'camera_info_url': camera_info_url_param,
+                'frame_id': 'camera_optical_frame',
             }],
             extra_arguments=[{'use_intra_process_comms': True}],
         ),
@@ -138,6 +142,7 @@ def generate_launch_description() -> LaunchDescription:
         use_image_view_launch_arg,
         width_launch_arg,
         height_launch_arg,
+        camera_info_url_launch_arg,
         camera_info_url_launch_arg,
         container,
     ])
