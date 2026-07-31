@@ -49,7 +49,7 @@ def generate_launch_description():
         DeclareLaunchArgument('use_battery_verify', default_value='false'),
 
         Node(
-            package='tb3_charging_dock',
+            package='yeyu_control',
             executable='charging_dock_node',
             name='charging_dock_node',
             output='screen',

@@ -40,7 +40,7 @@ NAV_ARRIVAL_TRANSITIONS = {
 
 class ParkingState(Enum):
     SEARCH_MARKER = 'SEARCH_MARKER'    # 마커 찾는 중
-    # APPROACH_PRE_DOCK = 'APPROACH_PRE_DOCK'  # 사전 정렬 위치까지 먼저 이동하는 단계
+    APPROACH_PRE_DOCK = 'APPROACH_PRE_DOCK'  # 사전 정렬 위치까지 먼저 이동하는 단계
     ALIGN_AXIS = 'ALIGN_AXIS'          # 좌우/각도 정렬 중
     FINAL_APPROACH = 'FINAL_APPROACH'  # 목표 거리까지 직진
     DONE = 'DONE'                       # 주차 완료
@@ -55,8 +55,12 @@ class ArucoObservation:
     y_m: float              # 상하 위치(보통 안 씀)
     z_m: float               # 로봇에서 마커까지 앞뒤 거리(m)
     bearing_rad: float        # 로봇이 봤을 때 마커가 있는 각도(라디안)
+    marker_normal_yaw_rad: float
     center_x: float             # 화면 픽셀 좌표(디버그 이미지용)
     center_y: float
+    image_width: int
+    image_height: int
+    area: float
 
 class DrivingNode(Node):
     def __init__(self):
@@ -123,23 +127,23 @@ class DrivingNode(Node):
         )
 
         #self.create_subscription(LaserScan, '/scan', self.on_lidar, 10)                       #-> on_lidar 필요할 때 주석 해제
-        self.create_subscription(CompressedImage, self.image_topic, self.image_callback, sensor_qos)
-        self.create_subscription(CameraInfo, self.camera_info_topic, self.camera_info_callback, sensor_qos)   # 카메라 정보(캘리브레이션)
+        self.image_sub = self.create_subscription(CompressedImage, self.image_topic, self.image_callback, sensor_qos)
+        self.camera_info_sub = self.create_subscription(CameraInfo, self.camera_info_topic, self.camera_info_callback, sensor_qos)   # 카메라 정보(캘리브레이션)
 
         self.pub_led = self.create_publisher(String, '/led_command', 10)                       # LED제어 
-        self.pub_cmd = self.create_publisher(Twist, '/cmd_vel', 10)                            # 로봇 이동 명령     
-        self.debug_pub = self.create_publisher(CompressedImage, '/parking_debug_image', sensor_qos) # 디버그용 이미지
-        self.pub_status = self.create_publisher(DrivingStatus, '/driving_status', 10)          # 상태 보고
+        self.cmd_pub = self.create_publisher(Twist, '/cmd_vel', 10)                            # 로봇 이동 명령     
+        self.debug_pub = self.create_publisher(CompressedImage, '/parking_debug_image/compressed', 10) # 디버그용 이미지 (rqt 기본 reliable 구독과 맞춤)
+        self.status_pub = self.create_publisher(DrivingStatus, '/driving_status', 10)          # 상태 보고
         #self.image_pub = self.create_publisher(Image, '/camera/image_flipped', 10)
  
         # 주차 제어 루프 (10Hz). mode가 PARKING일 때만 실제로 동작함.
         timer_period = 1.0 / max(self.control_rate_hz, 0.5)
-        self.control_timer = self.create_timer(timer_period, self.control_loop)
+        self.control_timer = self.create_timer(timer_period, self.parking_control_loop)
 
         self.get_logger().info(
             f'Charging dock node started. image={self.image_topic}, '
-            f'camera_info={self.camera_info_topic}, cmd_vel={self.cmd_vel_topic}, '
-            f'battery={self.battery_topic}, marker_id={self.target_marker_id}'
+            f'camera_info={self.camera_info_topic}, '
+            f'marker_id={self.target_marker_id}'
         )
  
         # --- 5. 초기 상태: 첫 웨이포인트(직각주차)로 출발 ---
@@ -159,8 +163,8 @@ class DrivingNode(Node):
         self.declare_parameter('marker_size_m', 0.10)
  
         # 정렬/정지 목표
-        # self.declare_parameter('pre_dock_distance_m', 0.50)
-        # self.declare_parameter('pre_dock_tolerance_m', 0.06)
+        self.declare_parameter('pre_dock_distance_m', 0.50)
+        self.declare_parameter('pre_dock_tolerance_m', 0.06)
         self.declare_parameter('parking_stop_distance_m', 0.18)     # 마커 벽에서 멈출 거리
 
         self.declare_parameter('final_lateral_limit_m', 0.035)    # charging에서는 0.06
@@ -177,7 +181,9 @@ class DrivingNode(Node):
 
         self.declare_parameter('k_z', 0.45)
         self.declare_parameter('k_bearing', 1.80)
- 
+        self.declare_parameter('k_final_bearing', 1.20)
+        self.declare_parameter('k_final_lateral', 0.90)
+
         # 탐색/복구
         self.declare_parameter('search_angular_speed_rps', 0.28) 
         self.declare_parameter('marker_lost_timeout_sec', 2.0)  # 0.7 -> 2
@@ -186,20 +192,24 @@ class DrivingNode(Node):
         self.declare_parameter('max_retry_count', 50)  #3은 너무 순식간에 끝나서 더 늘림
         self.declare_parameter('max_parking_time_sec', 60.0)
         self.declare_parameter('enable_debug_image', True)
+        self.declare_parameter('log_throttle_sec', 1.0)
 
         self.declare_parameter('enable_motion', True)  # False면 cmd_vel을 발행하지 않음(모션 비활성화)
  
     def _load_parking_parameters(self):
         self.image_topic = self.get_parameter('image_topic').value
         self.camera_info_topic = self.get_parameter('camera_info_topic').value
+
         self.aruco_dictionary_name = self.get_parameter('aruco_dictionary').value
         self.target_marker_id = int(self.get_parameter('target_marker_id').value)
         self.marker_size_m = float(self.get_parameter('marker_size_m').value)
+        self.pre_dock_distance_m = float(self.get_parameter('pre_dock_distance_m').value)
+        self.pre_dock_tolerance_m = float(self.get_parameter('pre_dock_tolerance_m').value)
  
         self.parking_stop_distance_m = float(self.get_parameter('parking_stop_distance_m').value)
         self.final_lateral_limit_m = float(self.get_parameter('final_lateral_limit_m').value)
         self.final_bearing_limit_rad = float(self.get_parameter('final_bearing_limit_rad').value)
- 
+        self.control_rate_hz = float(self.get_parameter('control_rate_hz').value)
         self.max_approach_speed_mps = float(self.get_parameter('max_approach_speed_mps').value)
         self.min_approach_speed_mps = float(self.get_parameter('min_approach_speed_mps').value)
         self.final_approach_speed_mps = float(self.get_parameter('final_approach_speed_mps').value)
@@ -207,7 +217,9 @@ class DrivingNode(Node):
         self.max_reverse_speed_mps = float(self.get_parameter('max_reverse_speed_mps').value)
         self.k_z = float(self.get_parameter('k_z').value)
         self.k_bearing = float(self.get_parameter('k_bearing').value)
- 
+        self.k_final_bearing = float(self.get_parameter('k_final_bearing').value)
+        self.k_final_lateral = float(self.get_parameter('k_final_lateral').value)
+
         self.search_angular_speed_rps = float(self.get_parameter('search_angular_speed_rps').value)
         self.marker_lost_timeout_sec = float(self.get_parameter('marker_lost_timeout_sec').value)
         self.stale_stop_timeout_sec = float(self.get_parameter('stale_stop_timeout_sec').value)
@@ -215,6 +227,7 @@ class DrivingNode(Node):
         self.max_retry_count = int(self.get_parameter('max_retry_count').value)
         self.max_parking_time_sec = float(self.get_parameter('max_parking_time_sec').value)
         self.enable_debug_image = self._get_bool_parameter('enable_debug_image')
+        self.log_throttle_sec = float(self.get_parameter('log_throttle_sec').value)
 
         self.enable_motion = self._get_bool_parameter('enable_motion')
 
@@ -347,6 +360,10 @@ class DrivingNode(Node):
 
         if observation_age > self.stale_stop_timeout_sec:    # 0.8초 넘게 안 갱신됐으면 살짝 끊긴 것
             self._publish_cmd(Twist())      # 일단 정지만 하고 대기 (recovery는 안 감)
+            self._throttled_info(
+                f'waiting for marker reacquisition, '
+                f'age={observation_age:.2f}s'
+            )
             return None
 
         return self.latest_observation    # 최근에(0.8초 이내에) 갱신됐으면 정상 값 반환
@@ -431,12 +448,12 @@ class DrivingNode(Node):
     
         try:
             frame = self.bridge.compressed_imgmsg_to_cv2(msg, desired_encoding='bgr8')  
-        except CvBridgeError as exc:
+        except (CvBridgeError,cv2.error) as exc:
             self.get_logger().warn(f'cv_bridge conversion failed: {exc}')
             return
 
-        # frame = cv2.flip(frame, -1)
-        # image_height, image_width = frame.shape[:2]
+        frame = cv2.flip(frame, -1)
+        image_height, image_width = frame.shape[:2]
 
         # [ 흑백으로 마커 검출 ]
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) 
@@ -607,6 +624,8 @@ class DrivingNode(Node):
                 self._transition_parking(ParkingState.FAILED, 'max parking time exceeded')
 
         if self.parking_state == ParkingState.DONE:
+            self.cmd_pub.publish(Twist())
+            
             return  # 이미 완료 처리됨 (on_parking_done에서 mode를 NAV_TO_SIGNAL로 변경)
  
         if self.parking_state == ParkingState.FAILED:
@@ -616,6 +635,8 @@ class DrivingNode(Node):
         # 지금 상태에 맞는 핸들러 함수 호출
         if self.parking_state == ParkingState.SEARCH_MARKER:
             self._handle_parking_search()
+        elif self.parking_state == ParkingState.APPROACH_PRE_DOCK:
+            self._handle_approach_pre_dock()
         elif self.parking_state == ParkingState.ALIGN_AXIS:
             self._handle_parking_align()
         elif self.parking_state == ParkingState.FINAL_APPROACH:
@@ -632,11 +653,11 @@ class DrivingNode(Node):
         # if obs is not None:
         # SEARCH_MARKER에서 latest_observation이 None인 건 정상 상태이지, "놓친" 상태가 아니므로 RECOVERY를 트리거하면 안 됨.
         ## obs = self.latest_observation
-        obs = self._get_valid_observation() 
+        obs = self.get_valid_observation()
         ##if obs is not None and self._elapsed(self.last_marker_time) <= self.marker_lost_timeout_sec:
         if obs is not None:
-            self._publish_cmd(Twist())     # ALIGN_AXIS로 넘어가도 회전하던 명령이 천천히 멈춰서 마커를 놓침
-            self._transition_parking(ParkingState.ALIGN_AXIS, 'marker acquired')  # 찾았으면 다음 단계로
+            self._publish_cmd(Twist())     # 다음 단계로 넘어가도 회전하던 명령이 천천히 멈춰서 마커를 놓침
+            self._transition_parking(ParkingState.APPROACH_PRE_DOCK, 'marker acquired')  # 찾았으면 다음 단계로
             return
             
         elapsed = self._elapsed(self.parking_state_enter_time)
@@ -653,7 +674,7 @@ class DrivingNode(Node):
         if elapsed < 2.0:
             direction = initial_direction
         else:
-            search_phase = int((elapsed - 2.0) / 20.0)
+            search_phase = int((elapsed - 2.0) / 60.0)
             direction = (
                 -initial_direction
                 if search_phase % 2 == 0
@@ -666,11 +687,48 @@ class DrivingNode(Node):
         cmd.angular.z = angular_z
         self._publish_cmd(cmd)
 
+        self._throttled_info(
+            f'SEARCH_MARKER: direction={direction:+.0f}, '
+            f'angular_z={angular_z:+.3f}'
+        )
+
+    def _handle_approach_pre_dock(self) -> None:
+        obs = self._get_tracking_observation('marker lost during pre-dock approach')
+        if obs is None:
+            return
+
+        distance_error = obs.z_m - self.pre_dock_distance_m
+
+        if abs(distance_error) <= self.pre_dock_tolerance_m:
+            self._transition_parking(ParkingState.ALIGN_AXIS, 'pre-dock distance reached')
+            self.cmd_pub.publish(Twist())
+            return
+
+        linear_x = self.k_z * distance_error
+
+        if linear_x > 0.0:
+            linear_x = max(self.min_approach_speed_mps, linear_x)
+
+        linear_x = self._clamp(
+            linear_x,
+            -self.max_reverse_speed_mps,
+            self.max_approach_speed_mps,
+        )
+
+        angular_z = self.compute_approach_angular(obs)
+
+        self.publish_cmd(linear_x, angular_z)
+
+        self._throttled_info(
+            f'APPROACH_PRE_DOCK: z={obs.z_m:.3f}, x={obs.x_m:.3f}, '
+            f'bearing={obs.bearing_rad:.3f}, cmd=({linear_x:.3f}, {angular_z:.3f})'
+        )
+
+
     # [ 좌우/각도 정렬 ]
     def _handle_parking_align(self):
         obs = self._get_tracking_observation('marker lost during align')
         if obs is None:
-            # self._start_parking_recovery('marker lost during align')
             return
  
         aligned = (
@@ -694,11 +752,6 @@ class DrivingNode(Node):
             linear_x = 0.012
 
         self.publish_cmd(linear_x, angular_z)
- 
-        cmd = Twist()
-        cmd.linear.x = linear_x
-        cmd.angular.z = angular_z
-        self._publish_cmd(cmd)
         self.last_tracking_angular_z = angular_z
 
     # [ 목표 거리까지 직진 접근 ]
@@ -717,10 +770,12 @@ class DrivingNode(Node):
         # 정렬이 너무 틀어지면(lateral_tolerance2배 넘으면) 다시 정렬 단계로
         if abs(obs.x_m) > self.final_lateral_limit_m * 2:
             self._transition_parking(ParkingState.ALIGN_AXIS, 'final lateral error too large')
+            self.cmd_pub.publish(Twist())
             return
 
         if abs(obs.bearing_rad) > self.final_bearing_limit_rad * 2:
             self._transition_parking(ParkingState.ALIGN_AXIS, 'final bearing error too large')
+            self.cmd_pub.publish(Twist())
             return
         
         self.get_logger().info(f'===========obs.z_m ={obs.z_m}==================')
@@ -733,18 +788,23 @@ class DrivingNode(Node):
             self._on_parking_done()
             return
 
+        angular_z = (
+            -self.k_final_bearing * obs.bearing_rad
+            -self.k_final_lateral * obs.x_m
+        )
 
-        # 목표거리 도달하지 않을 경우 이동 명령
-        distance_error = obs.z_m - self.parking_stop_distance_m   # 남은 거리에 비례해서 속도 계산
-        linear_x = max(self.min_approach_speed_mps, self.k_z * distance_error)   # 최소 속도 이하로는 안 내려가게
+        angular_z = self._clamp(
+            angular_z,
+            -self.max_angular_speed_rps * 0.5,
+            self.max_angular_speed_rps * 0.5,
+        )
 
-        linear_x = self._clamp(linear_x, 0.0, self.final_approach_speed_mps)   
-        angular_z = self._clamp(-self.k_bearing * obs.bearing_rad, -0.3, 0.3)  
- 
-        cmd = Twist()
-        cmd.linear.x = linear_x
-        cmd.angular.z = angular_z
-        self._publish_cmd(cmd)
+        self.publish_cmd(self.final_approach_speed_mps, angular_z)
+
+        self._throttled_info(
+            f'FINAL_APPROACH: z={obs.z_m:.3f}, x={obs.x_m:.3f}, '
+            f'bearing={obs.bearing_rad:.3f}, cmd=({self.final_approach_speed_mps:.3f}, {angular_z:.3f})'
+        )
 
     # [ 잠깐 후진 다시 탐색 ]
     def _handle_parking_recovery(self):
@@ -753,16 +813,16 @@ class DrivingNode(Node):
         elapsed = self._elapsed(self.parking_state_enter_time)
 
         if elapsed < self.recovery_backup_time_sec:
-            cmd = Twist()
-            cmd.linear.x = -self.max_reverse_speed_mps
-            self._publish_cmd(cmd)
+            self.publish_cmd(-self.max_reverse_speed_mps, 0.0)
+            self._throttled_info(
+                f'RECOVERY_BACKUP: backing up, retry={self.parking_retry_count}/{self.max_retry_count}'
+            )
             return
 
         # 재시도 횟수 다 썼으면 FAILED , 아니면 다시 탐색(SEARCH_MARKER)
-        self._publish_cmd(Twist())
-
         if self.parking_retry_count >= self.max_retry_count:
             self._transition_parking(ParkingState.FAILED, 'retry count exceeded')
+            self._publish_cmd(Twist())
             return
         
         self._transition_parking(ParkingState.SEARCH_MARKER, 'recovery finished')
@@ -833,14 +893,41 @@ class DrivingNode(Node):
         )
         msg.retry_count = self.parking_retry_count
 
-        self.pub_status.publish(msg)
+        self.status_pub.publish(msg)
 
     def _publish_cmd(self, cmd: Twist) -> None:
         """실제 cmd_vel 발행 지점. enable_motion이 False면 무조건 정지 명령만 내보냄."""
         if not self.enable_motion:
-            self.pub_cmd.publish(Twist())  # 항상 정지 상태 유지
+            self.cmd_pub.publish(Twist())  # 항상 정지 상태 유지
             return
-        self.pub_cmd.publish(cmd)
+        self.cmd_pub.publish(cmd)
+
+    def publish_cmd(self, linear_x: float, angular_z: float) -> None:
+        cmd = Twist()
+
+        cmd.linear.x = self._clamp(
+            linear_x,
+            -self.max_reverse_speed_mps,
+            self.max_approach_speed_mps,
+        )
+
+        cmd.angular.z = self._clamp(
+            angular_z,
+            -self.max_angular_speed_rps,
+            self.max_angular_speed_rps,
+        )
+
+        if (
+            self.parking_state in [
+                ParkingState.APPROACH_PRE_DOCK,
+                ParkingState.ALIGN_AXIS,
+                ParkingState.FINAL_APPROACH,
+            ]
+            and abs(cmd.angular.z) > 0.01
+        ):
+            self.last_tracking_angular_z = cmd.angular.z
+
+        self._publish_cmd(cmd)
 
     # 주차완료 후 mode를 NAV_TO_SIGNAL로
     def _on_parking_done(self):
@@ -972,6 +1059,7 @@ class DrivingNode(Node):
         if self._elapsed(self.last_log_time) >= self.log_throttle_sec:
             self.get_logger().warn(msg)
             self.last_log_time = self.get_clock().now()
+            
     @staticmethod
     def _normalize_angle(angle: float) -> float:
         return math.atan2(math.sin(angle), math.cos(angle))
@@ -979,12 +1067,12 @@ class DrivingNode(Node):
     #값이 범위에서 벗어나면 경계값으로 잘라줌(속도 제한 등)
 
     @staticmethod
-    def _clamp(self, value: float, low: float, high: float) -> float:
+    def _clamp(value: float, low: float, high: float) -> float:
         return max(low, min(high, value))
 
     def destroy_node(self):
         for _ in range(5):
-            self.publish_stop()
+            self.cmd_pub.publish(Twist())
 
         return super().destroy_node()
 

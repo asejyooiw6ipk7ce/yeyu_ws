@@ -95,12 +95,12 @@ class ChargingDockNode(Node):
         # self.declare_parameter('k_normal_yaw', 0.30)
 
         self.declare_parameter('search_angular_speed_rps', 0.28)
-        self.declare_parameter('marker_lost_timeout_sec', 0.70)
-        self.declare_parameter('stale_stop_timeout_sec', 0.20)
+        self.declare_parameter('marker_lost_timeout_sec', 2.0)
+        self.declare_parameter('stale_stop_timeout_sec', 0.70)
         # =====================================================
         self.declare_parameter('contact_push_time_sec', 1.20)
-        # =====================================================
         self.declare_parameter('charge_verify_timeout_sec', 6.0)
+        # =====================================================
         self.declare_parameter('recovery_backup_time_sec', 1.20)
         self.declare_parameter('max_retry_count', 3)
         self.declare_parameter('max_docking_time_sec', 90.0)
@@ -126,8 +126,8 @@ class ChargingDockNode(Node):
         self.pre_dock_distance_m = float(self.get_parameter('pre_dock_distance_m').value)
         self.pre_dock_tolerance_m = float(self.get_parameter('pre_dock_tolerance_m').value)
         self.final_dock_distance_m = float(self.get_parameter('final_dock_distance_m').value)
-        self.lateral_tolerance_m = float(self.get_parameter('lateral_tolerance_m').value)
-        self.bearing_tolerance_rad = float(self.get_parameter('bearing_tolerance_rad').value)
+        # self.lateral_tolerance_m = float(self.get_parameter('lateral_tolerance_m').value)
+        # self.bearing_tolerance_rad = float(self.get_parameter('bearing_tolerance_rad').value)
         self.final_lateral_limit_m = float(self.get_parameter('final_lateral_limit_m').value)
         self.final_bearing_limit_rad = float(self.get_parameter('final_bearing_limit_rad').value)
         self.control_rate_hz = float(self.get_parameter('control_rate_hz').value)
@@ -142,18 +142,18 @@ class ChargingDockNode(Node):
 
         self.k_z = float(self.get_parameter('k_z').value)
         self.k_bearing = float(self.get_parameter('k_bearing').value)
-        self.k_lateral = float(self.get_parameter('k_lateral').value)
+        # self.k_lateral = float(self.get_parameter('k_lateral').value)
         self.k_final_bearing = float(self.get_parameter('k_final_bearing').value)
         self.k_final_lateral = float(self.get_parameter('k_final_lateral').value)
-        self.k_normal_yaw  = float(self.get_parameter('k_normal_yaw').value)
+        # self.k_normal_yaw  = float(self.get_parameter('k_normal_yaw').value)
 
         self.search_angular_speed_rps = float(self.get_parameter('search_angular_speed_rps').value)
         self.marker_lost_timeout_sec = float(self.get_parameter('marker_lost_timeout_sec').value)
         self.stale_stop_timeout_sec = float(self.get_parameter('stale_stop_timeout_sec').value)
         # ==========================================================================================
         self.contact_push_time_sec = float(self.get_parameter('contact_push_time_sec').value)
-        # ==========================================================================================
         self.charge_verify_timeout_sec = float(self.get_parameter('charge_verify_timeout_sec').value)
+        # ==========================================================================================
         self.recovery_backup_time_sec = float(self.get_parameter('recovery_backup_time_sec').value)
         self.max_retry_count = int(self.get_parameter('max_retry_count').value)
         self.max_docking_time_sec = float(self.get_parameter('max_docking_time_sec').value)
@@ -300,7 +300,7 @@ class ChargingDockNode(Node):
         
         try:
             frame = self.bridge.compressed_imgmsg_to_cv2(msg, desired_encoding='bgr8')
-        except CvBridgeError as exc:
+        except (CvBridgeError,cv2.error) as exc:
             self.get_logger().warn(f'cv_bridge conversion failed: {exc}')
             return
 
@@ -440,11 +440,13 @@ class ChargingDockNode(Node):
             self.publish_docked(False)
             return
 
+        # ===============================================================
         if self.is_charging():
             self.transition_to(DockState.DOCKED, 'charging detected')
             self.publish_stop()
             self.publish_docked(True)
             return
+        # ===============================================================
 
         if self.state == DockState.SEARCH_MARKER:
             self.handle_search_marker()
@@ -902,6 +904,7 @@ class ChargingDockNode(Node):
         if self._elapsed(self.last_log_time) >= self.log_throttle_sec:
             self.get_logger().warn(msg)
             self.last_log_time = self.get_clock().now()
+
     @staticmethod
     def _normalize_angle(angle: float) -> float:
         return math.atan2(math.sin(angle), math.cos(angle))
