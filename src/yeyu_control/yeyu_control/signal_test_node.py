@@ -12,7 +12,12 @@ class SignalColorTest(Node):
         self.bridge = CvBridge()
         self.GREEN_LOWER = np.array([35, 40, 40])
         self.GREEN_UPPER = np.array([90, 255, 255])
-        self.SIGNAL_PIXEL_THRESHOLD = 500
+
+        self.BLUE_LOWER = np.array([95, 80, 50])
+        self.BLUE_HIGHER = np.array([130, 255, 255])
+
+
+        self.SIGNAL_PIXEL_THRESHOLD = 300
         self.create_subscription(Image, '/camera/image_raw', self.on_camera, 10)
         self.image_pub = self.create_publisher(Image, '/camera/image_flipped', 10)  # 추가
 
@@ -38,9 +43,13 @@ class SignalColorTest(Node):
         center_pixel = hsv[h//2, w//2]
         self.get_logger().info(f'중앙 픽셀 HSV: {center_pixel}')   # 임시 디버그용
 
-        mask = cv2.inRange(hsv, self.GREEN_LOWER, self.GREEN_UPPER)
-        count = cv2.countNonZero(mask)
-        self.get_logger().info(f'green_count={count}')
+        green_mask = cv2.inRange(hsv, self.GREEN_LOWER, self.GREEN_UPPER)
+        green_count = cv2.countNonZero(green_mask)
+        self.get_logger().info(f'green_count={green_count}')
+
+        blue_mask = cv2.inRange(hsv, self.BLUE_LOWER, self.BLUE_HIGHER)
+        blue_count = cv2.countNonZero(blue_mask)
+        self.get_logger().info(f'blue_count={blue_count}')
         
 def main():
     rclpy.init()
