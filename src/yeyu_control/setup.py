@@ -34,6 +34,7 @@ setup(
             'main_node = yeyu_control.main_node:main',
             'signal_test_node = yeyu_control.signal_test_node:main',
             'driving_waypoint_node = yeyu_control.driving_waypoint_node:main',
+            'arduino_bridge_node = yeyu_control.arduino_bridge_node:main',
 
 
         ],
