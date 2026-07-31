@@ -28,7 +28,7 @@ class AudioOutputNode(Node):
 
         self.topic_name = self.get_parameter('topic_name').value
         self.tts_language = self.get_parameter('tts_language').value
-        self.tts_slow = bool(self.get_parameter('tts_slow').value_)
+        self.tts_slow = bool(self.get_parameter('tts_slow').value)
         self.enable_tts = bool(self.get_parameter('enable_tts').value)
         self.enable_effect = bool(self.get_parameter('enable_effect').value)
 
