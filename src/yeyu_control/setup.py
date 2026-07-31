@@ -34,13 +34,10 @@ setup(
             'main_node = yeyu_control.main_node:main',
             'signal_test_node = yeyu_control.signal_test_node:main',
             'driving_waypoint_node = yeyu_control.driving_waypoint_node:main',
-<<<<<<< HEAD
             'arduino_bridge_node = yeyu_control.arduino_bridge_node:main',
-=======
             'charging_dock_node = yeyu_control.reference.charging_dock_node:main',
             'speck_node = yeyu_control.spaek_node:main',
             'audio_output_node = yeyu_control.audio_output_node:main',
->>>>>>> 5613fe2e5ec7cd0b37e8207ec06b8fac6e974c0c
 
 
         ],
