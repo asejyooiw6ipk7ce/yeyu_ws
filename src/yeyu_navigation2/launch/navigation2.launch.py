@@ -35,7 +35,7 @@ def generate_launch_description():
         default=os.path.join(
             get_package_share_directory('yeyu_navigation2'),
             'map',
-            'map.yaml'))
+            'map2.yaml'))
 
     param_file_name = TURTLEBOT3_MODEL + '.yaml'
     if ROS_DISTRO == 'humble':

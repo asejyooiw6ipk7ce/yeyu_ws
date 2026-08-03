@@ -2,7 +2,6 @@ import math
 import os
 import yaml
 import rclpy
-from enum import Enum
 from dataclasses import dataclass
 from typing import Optional
 
@@ -16,12 +15,16 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPo
 from rcl_interfaces.srv import SetParameters
 from rcl_interfaces.msg import Parameter, ParameterValue, ParameterType
 from nav2_msgs.action import NavigateToPose
+from nav_msgs.msg import Odometry
 from action_msgs.msg import GoalStatus
 from sensor_msgs.msg import CompressedImage, CameraInfo
 from geometry_msgs.msg import Twist
 from std_msgs.msg import String
 from yeyu_msgs.msg import DrivingStatus
-from yeyu_control.driving_mode import DrivingMode
+from yeyu_msgs.msg import AudioCommand
+from yeyu_control.states.driving_mode import DrivingMode
+from yeyu_control.states.parking_state import ParkingState
+from yeyu_control.states.stage_result import StageResult
 from ament_index_python.packages import get_package_share_directory
 from cv_bridge import CvBridge, CvBridgeError
 import cv2
@@ -44,17 +47,7 @@ LED_COLOR_MAP = {
 }
 
 
-# ================= ArUco 주차용 상태/데이터 클래스 =================
-class ParkingState(Enum):
-    SEARCH_MARKER = 'SEARCH_MARKER'
-    APPROACH_PRE_DOCK = 'APPROACH_PRE_DOCK'
-    ALIGN_AXIS = 'ALIGN_AXIS'
-    FINAL_APPROACH = 'FINAL_APPROACH'
-    DONE = 'DONE'
-    RECOVERY = 'RECOVERY'
-    FAILED = 'FAILED'
-
-
+# ================= ArUco 주차용 데이터 클래스 =================
 @dataclass
 class ArucoObservation:
     marker_id: int
@@ -75,11 +68,21 @@ class DrivingNode(Node):
         super().__init__('driving_node')
 
         # --- 콜백 그룹 ---
-        self.camera_cb_group = ReentrantCallbackGroup()   # 카메라/camera_info 구독
-        self.nav_cb_group = ReentrantCallbackGroup()      # Nav2 액션
-        self.parking_cb_group = ReentrantCallbackGroup()  # 주차 제어 루프 타이머
+        self.camera_cb_group = ReentrantCallbackGroup()
+        self.nav_cb_group = ReentrantCallbackGroup()
+        self.parking_cb_group = ReentrantCallbackGroup()
 
-        # --- waypoints 로드 (wp1~wp6) ---
+        # --- 구간별 성공/실패 결과 저장소 ---
+        self.stage_results = {
+            'NAV_WAYPOINT': StageResult.IN_PROGRESS,
+            'SIGNAL_WAIT': StageResult.IN_PROGRESS,
+            'ACCEL_ZONE': StageResult.IN_PROGRESS,
+            'PARKING': StageResult.IN_PROGRESS,
+        }
+        self.speed_violation_start = None
+        self.signal_wait_enter_time = None
+
+        # --- waypoints 로드 (wp1~wp7) ---
         wp_path = os.path.join(
             get_package_share_directory('yeyu_waypoint_nav'),
             'waypoints',
@@ -97,19 +100,17 @@ class DrivingNode(Node):
             self, NavigateToPose, 'navigate_to_pose',
             callback_group=self.nav_cb_group)
         self.current_goal_handle = None
+        self.nav_fail_count = 0
 
         # --- ArUco/주차 파라미터 선언 및 로드 ---
         self._declare_parking_parameters()
         self._load_parking_parameters()
 
-        # --- CvBridge (공용, 신호/표지판/ArUco 전부 이걸로 변환) ---
         self.bridge = CvBridge()
 
-        # --- 카메라 캘리브레이션 (ArUco 거리 계산용) ---
         self.camera_matrix: Optional[np.ndarray] = None
         self.dist_coeffs: Optional[np.ndarray] = None
 
-        # --- ArUco 관측/주차 상태머신 초기값 ---
         self.latest_observation: Optional[ArucoObservation] = None
         self.last_marker_time = self.get_clock().now() - Duration(seconds=999.0)
         self.parking_state = ParkingState.SEARCH_MARKER
@@ -131,12 +132,13 @@ class DrivingNode(Node):
             depth=1,
         )
 
-        # 카메라 구독은 이 하나로 통일 (신호/표지판/ArUco 전부 여기서 mode로 분기)
         self.create_subscription(
             CompressedImage, self.image_topic, self.on_camera, sensor_qos,
             callback_group=self.camera_cb_group)
         self.create_subscription(
             CameraInfo, self.camera_info_topic, self.camera_info_callback, sensor_qos,
+            callback_group=self.camera_cb_group)
+        self.create_subscription(Odometry, '/odom', self.on_odom, 10,
             callback_group=self.camera_cb_group)
 
         self.param_client = self.create_client(SetParameters, '/controller_server/set_parameters')
@@ -145,8 +147,8 @@ class DrivingNode(Node):
         self.status_pub = self.create_publisher(DrivingStatus, '/driving_status', 10)
         self.image_pub = self.create_publisher(CompressedImage, '/camera/image_flipped', 10)
         self.debug_pub = self.create_publisher(CompressedImage, '/parking_debug_image/compressed', 10)
+        self.audio_pub = self.create_publisher(AudioCommand, '/audio/command', 10)
 
-        # 주차 제어 루프 (mode가 PARKING일 때만 내부에서 실제로 동작)
         timer_period = 1.0 / max(self.control_rate_hz, 0.5)
         self.control_timer = self.create_timer(
             timer_period, self.parking_control_loop,
@@ -162,8 +164,7 @@ class DrivingNode(Node):
 
         # --- 초기 상태: 첫 웨이포인트로 출발 ---
         self.mode = DrivingMode.NAV_TO_START
-        self.wp_index = 0
-        self.set_speed(0.15)
+        self.set_speed(0.13)
         self.startup_timer = self.create_timer(0.5, self.on_startup)
 
     # ================= 파라미터 =================
@@ -192,7 +193,7 @@ class DrivingNode(Node):
         self.declare_parameter('marker_lost_timeout_sec', 2.0)
         self.declare_parameter('stale_stop_timeout_sec', 0.8)
         self.declare_parameter('recovery_backup_time_sec', 1.20)
-        self.declare_parameter('max_retry_count', 50)
+        self.declare_parameter('max_retry_count', 3)
         self.declare_parameter('max_parking_time_sec', 60.0)
         self.declare_parameter('enable_debug_image', True)
         self.declare_parameter('log_throttle_sec', 1.0)
@@ -240,14 +241,13 @@ class DrivingNode(Node):
             return
         self._start_check_timer.cancel()
         self.set_led('START')
+        self.notify_tts('주행을 시작합니다.')   # [TTS 추가]
         self.send_waypoint(self.waypoints[0])
 
     # ================= Nav2 제어 =================
     def send_waypoint(self, wp):
         self.get_logger().info(f'[send_waypoint] target={wp}')
         self.nav_client.wait_for_server()
-        self.get_logger().info('[send_waypoint] action server ready, sending goal')
-
         goal = NavigateToPose.Goal()
         goal.pose.header.frame_id = 'map'
         goal.pose.header.stamp = self.get_clock().now().to_msg()
@@ -266,7 +266,6 @@ class DrivingNode(Node):
         if not goal_handle.accepted:
             self.get_logger().warn('경로 목표가 거부됨')
             return
-        self.get_logger().info('[on_goal_response] goal accepted!')
         self.current_goal_handle = goal_handle
         result_future = goal_handle.get_result_async()
         result_future.add_done_callback(self.on_nav_result)
@@ -284,6 +283,7 @@ class DrivingNode(Node):
         self.get_logger().info(f'[on_nav_result] status={status}')
 
         if status == GoalStatus.STATUS_SUCCEEDED:
+            self.nav_fail_count = 0   # 도착 성공했으니 실패 카운트 리셋
 
             if self.wp_index == 0:   # wp1 도착(무조건 통과) → wp2로
                 self.wp_index = 1
@@ -294,13 +294,25 @@ class DrivingNode(Node):
             if self.wp_index == 3:   # wp4 도착(무조건 통과) → wp5(ArUco 지점)로
                 self.wp_index = 4
                 self.mode = DrivingMode.NAV_TO_PARKING
-                self.set_speed(0.15)
+                self.set_speed(0.13)
+                if self.stage_results['ACCEL_ZONE'] == StageResult.IN_PROGRESS:
+                    self.stage_results['ACCEL_ZONE'] = StageResult.PASS
+                    self.notify_tts('가속구간을 규정 속도 내로 통과했습니다.')   # [TTS 추가]
                 self.send_waypoint(self.waypoints[4])
                 return
 
-            if self.wp_index == 5:   # wp6(최종 도착점) 도착
+            if self.wp_index == 5:   # wp6 도착(무조건 통과) → wp7(최종 도착점)로
+                self.wp_index = 6
+                self.mode = DrivingMode.NAV_TO_END
+                self.send_waypoint(self.waypoints[6])
+                return
+
+            if self.wp_index == 6:   # wp7(최종 도착점) 도착
+                if self.stage_results['NAV_WAYPOINT'] == StageResult.IN_PROGRESS:
+                    self.stage_results['NAV_WAYPOINT'] = StageResult.PASS
                 self.get_logger().info('=== 전체 코스 완료 ===')
                 self._publish_cmd(Twist())
+                self._announce_final_result()   # [TTS 추가] 최종 결과 요약 음성 안내
                 return
 
             next_mode = NAV_ARRIVAL_TRANSITIONS.get(self.mode)
@@ -310,18 +322,29 @@ class DrivingNode(Node):
 
                 if self.mode == DrivingMode.SIGNAL_WAIT:
                     self.set_led('SIGNAL_WAIT')
+                    self.signal_wait_enter_time = self.get_clock().now()
                 elif self.mode == DrivingMode.ACCEL_ZONE:
                     self.set_led('ACCEL_ZONE')
                 elif self.mode == DrivingMode.PARKING:
                     self.set_led('PARKING')
-                    self._reset_parking_state()   # wp5 도착 → ArUco 상태머신 처음부터 시작
+                    self._reset_parking_state()
             else:
                 self.get_logger().warn(f'예상치 못한 도착 콜백, 현재 mode={self.mode.name}')
 
         elif status == GoalStatus.STATUS_CANCELED:
             self.get_logger().info('경로 취소됨')
+
         elif status == GoalStatus.STATUS_ABORTED:
-            self.get_logger().warn(f'주행 실패(ABORTED), 현재 mode={self.mode.name}')
+            self.nav_fail_count += 1
+            self.get_logger().warn(f'주행 실패(ABORTED), {self.nav_fail_count}/3회')
+            if self.nav_fail_count >= 3:
+                self.stage_results['NAV_WAYPOINT'] = StageResult.FAIL
+                self.mode = DrivingMode.E_STOP
+                self.get_logger().error('경로 탐색 3회 실패, E_STOP 진입 — 경로를 찾을 수 없습니다')
+                self._publish_cmd(Twist())
+                self.notify_tts('경로를 찾을 수 없습니다. 임무를 일시정지합니다.')   # [TTS 추가]
+            else:
+                self.send_waypoint(self.waypoints[self.wp_index])
         else:
             self.get_logger().warn(f'예상치 못한 nav 상태: {status}')
 
@@ -344,26 +367,42 @@ class DrivingNode(Node):
         except Exception as e:
             self.get_logger().warn(f'republish 실패: {e}')
 
-        # ---- 여기서부터 mode에 따라 분기, PARKING일 때만 ArUco 로직 실행 ----
-        if self.mode == DrivingMode.SIGNAL_WAIT:               # wp2: 신호 인식
+        if self.mode == DrivingMode.SIGNAL_WAIT:
             self._process_signal(flipped)
-        elif self.mode == DrivingMode.ACCEL_ZONE:               # wp3: 표지판 인식
+        elif self.mode == DrivingMode.ACCEL_ZONE:
             self._process_speed_sign(flipped)
-        elif self.mode == DrivingMode.PARKING:                  # wp5: ArUco 인식 (여기서만 실행)
+        elif self.mode == DrivingMode.PARKING:
             self._process_aruco(flipped, msg.header, image_width=flipped.shape[1], image_height=flipped.shape[0])
-        # 그 외 모드(NAV_TO_*, NAV_TO_END)에서는 카메라로 아무것도 안 함
 
     def _process_signal(self, flipped):
+        # 이미 FAIL로 확정됐으면 더 이상 판정하지 않음 (PASS로 역전 방지)
+        if self.stage_results['SIGNAL_WAIT'] == StageResult.FAIL:
+            return
+
         color = self.detect_signal_color(flipped)
         if color == 'green':
             self.green_count += 1
             if self.green_count >= 3:
+                self.stage_results['SIGNAL_WAIT'] = StageResult.PASS
+                self.notify_tts('신호등이 초록불로 감지되었습니다. 가속구간으로 이동합니다.')   # [TTS 추가]
                 self.green_count = 0
                 self.wp_index = 2
                 self.mode = DrivingMode.NAV_TO_ACCEL
                 self.send_waypoint(self.waypoints[2])  # wp3로 감
+                return
         else:
             self.green_count = 0
+
+        # 5초 초과 시 FAIL 확정 + FAIL이어도 다음 구간(wp3)으로 계속 진행
+        elapsed = (self.get_clock().now() - self.signal_wait_enter_time).nanoseconds / 1e9
+        if elapsed > 5.0:
+            self.stage_results['SIGNAL_WAIT'] = StageResult.FAIL
+            self.get_logger().warn('[SIGNAL_WAIT] 5초 초과, FAIL 처리 후 다음 구간으로 진행')
+            self.notify_tts('신호대기 시간이 초과되었습니다. 다음 구간으로 이동합니다.')   # [TTS 추가]
+            self.green_count = 0
+            self.wp_index = 2
+            self.mode = DrivingMode.NAV_TO_ACCEL
+            self.send_waypoint(self.waypoints[2])
 
     def _process_speed_sign(self, flipped):
         color = self.detect_speed_sign(flipped)
@@ -372,6 +411,7 @@ class DrivingNode(Node):
             if self.blue_count >= 3:
                 self.blue_count = 0
                 self.wp_index = 3
+                self.notify_tts('가속표지판이 감지되었습니다. 제한 속도 내로 주차구간으로 이동합니다.')   # [TTS 추가]
                 self.mode = DrivingMode.NAV_TO_PARKING
                 self.set_speed(0.22)
                 self.send_waypoint(self.waypoints[3])  # wp4로 감
@@ -379,8 +419,6 @@ class DrivingNode(Node):
             self.blue_count = 0
 
     def _process_aruco(self, frame, header, image_width, image_height):
-        # 아래 로직은 원래 두 번째 코드(image_callback)의 ArUco 인식 부분 그대로,
-        # on_camera에서 mode==PARKING일 때만 호출되도록 옮겨온 것
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         if self.aruco_detector is not None:
             corners, ids, _ = self.aruco_detector.detectMarkers(gray)
@@ -458,18 +496,36 @@ class DrivingNode(Node):
             self.dist_coeffs = np.array(msg.d, dtype=np.float64)
             self.get_logger().info('CameraInfo received. ArUco pose estimation enabled.')
 
+    def on_odom(self, msg):
+        if self.mode != DrivingMode.ACCEL_ZONE:
+            self.speed_violation_start = None
+            return
+
+        linear_x = msg.twist.twist.linear.x
+        now = self.get_clock().now()
+
+        if linear_x < 0.2 or linear_x > 0.22:
+            if self.speed_violation_start is None:
+                self.speed_violation_start = now
+            elapsed = (now - self.speed_violation_start).nanoseconds / 1e9
+            if elapsed >= 0.3:
+                if self.stage_results['ACCEL_ZONE'] != StageResult.FAIL:
+                    self.get_logger().warn(f'[ACCEL_ZONE] {elapsed:.2f}초간 속도 이탈({linear_x:.3f} m/s), FAIL 처리')
+                    self.stage_results['ACCEL_ZONE'] = StageResult.FAIL
+                    self.notify_tts('규정 속도를 벗어났습니다.')   # [TTS 추가]
+        else:
+            self.speed_violation_start = None
+
     def detect_signal_color(self, cv_image):
         hsv = cv2.cvtColor(cv_image, cv2.COLOR_BGR2HSV)
         mask = cv2.inRange(hsv, self.GREEN_LOWER, self.GREEN_HIGHER)
         count = cv2.countNonZero(mask)
-        self.get_logger().info(f'green_count={count}')
         return 'green' if count > self.SIGNAL_PIXEL_THRESHOLD else 'unknown'
 
     def detect_speed_sign(self, cv_image):
         hsv = cv2.cvtColor(cv_image, cv2.COLOR_BGR2HSV)
         mask = cv2.inRange(hsv, self.BLUE_LOWER, self.BLUE_HIGHER)
         count = cv2.countNonZero(mask)
-        self.get_logger().info(f'blue_count={count}')
         return 'blue' if count > self.SPEED_SIGN_PIXEL_THRESHOLD else 'unknown'
 
     def _get_bool_parameter(self, name: str) -> bool:
@@ -496,7 +552,7 @@ class DrivingNode(Node):
             aruco_detector = cv2.aruco.ArucoDetector(aruco_dict, aruco_params)
         return aruco_dict, aruco_params, aruco_detector
 
-    # ================= 주차 제어 루프 (독립 타이머, mode==PARKING일 때만 동작) =================
+    # ================= 주차 제어 루프 =================
     def parking_control_loop(self):
         if self.mode != DrivingMode.PARKING:
             return
@@ -507,9 +563,19 @@ class DrivingNode(Node):
                 self._transition_parking(ParkingState.FAILED, 'max parking time exceeded')
 
         if self.parking_state == ParkingState.DONE:
-            self.cmd_pub.publish(Twist())
+            self._publish_cmd(Twist())
             return
+
         if self.parking_state == ParkingState.FAILED:
+            # 한 번만 FAIL 확정 + wp7로 강제 진행 (매 프레임 반복 호출 방지)
+            if self.stage_results['PARKING'] != StageResult.FAIL:
+                self.stage_results['PARKING'] = StageResult.FAIL
+                self.get_logger().warn('[PARKING] FAILED, wp6로 강제 진행')
+                self.notify_tts('직각주차에 실패했습니다. 도착점으로 이동합니다.')   # [TTS 추가]
+                self.wp_index = 5
+                self.mode = DrivingMode.NAV_TO_END
+                self.set_led('END')
+                self.send_waypoint(self.waypoints[5])
             self._publish_cmd(Twist())
             return
 
@@ -702,11 +768,12 @@ class DrivingNode(Node):
         self._publish_cmd(cmd)
 
     def _on_parking_done(self):
-        """ArUco 정렬 완료 → wp6(최종 도착점)으로 이동. (기존 wp2/NAV_TO_SIGNAL 이동 로직을 wp6/NAV_TO_END로 교체)"""
+        self.stage_results['PARKING'] = StageResult.PASS
+        self.notify_tts('직각주차가 완료되었습니다.')   # [TTS 추가]
         self.wp_index = 5
-        self.send_waypoint(self.waypoints[5])   # wp6로 감
         self.mode = DrivingMode.NAV_TO_END
         self.set_led('END')
+        self.send_waypoint(self.waypoints[5])
 
     def _draw_debug_image(self, frame, corners, ids, observation, selected_index):
         debug = frame.copy()
@@ -787,6 +854,35 @@ class DrivingNode(Node):
             return
         self.pub_led.publish(String(data=color))
         self.get_logger().info(f'[LED] {color}점등 ({state_key})')
+
+    # ================= TTS 제어 =================
+    def notify_tts(self, text: str):
+        msg = AudioCommand()
+        msg.type = AudioCommand.TYPE_TTS
+        msg.text = text
+        msg.volume = 1.0
+        msg.repeat = 1
+        self.audio_pub.publish(msg)
+        self.get_logger().info(f'[TTS] {text}')
+
+    # ================= 결과 요약 (RESULT_SUMMARY 진입 시 호출) =================
+    def publish_final_result(self):
+        for stage, result in self.stage_results.items():
+            self.get_logger().info(f'{stage}: {result.name}')
+        msg = DrivingStatus()
+        msg.mode = 'RESULT_SUMMARY'
+        msg.result = 'PASS' if all(r == StageResult.PASS for r in self.stage_results.values()) else 'FAIL'
+        self.status_pub.publish(msg)
+
+    def _announce_final_result(self):
+        """전체 코스 완료 시 결과 요약을 로그+토픽+TTS로 알림"""
+        self.publish_final_result()
+        overall_pass = all(r == StageResult.PASS for r in self.stage_results.values())
+        if overall_pass:
+            self.notify_tts('전체 코스를 완료했습니다. 모든 구간을 성공적으로 통과했습니다.')
+        else:
+            fail_stages = [name for name, r in self.stage_results.items() if r == StageResult.FAIL]
+            self.notify_tts(f'전체 코스를 완료했습니다. {", ".join(fail_stages)} 구간에서 실패했습니다.')
 
     def destroy_node(self):
         for _ in range(5):

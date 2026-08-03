@@ -12,7 +12,7 @@ from sensor_msgs.msg import CompressedImage, LaserScan, CameraInfo
 from geometry_msgs.msg import Twist
 from std_msgs.msg import String
 from yeyu_msgs.msg import DrivingStatus
-from yeyu_control.driving_mode import DrivingMode
+from yeyu_control.states.driving_mode import DrivingMode
 from ament_index_python.packages import get_package_share_directory
 from cv_bridge import CvBridge
 import cv2
