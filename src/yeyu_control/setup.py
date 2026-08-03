@@ -36,7 +36,7 @@ setup(
             'driving_waypoint_node = yeyu_control.driving_waypoint_node:main',
             'arduino_bridge_node = yeyu_control.arduino_bridge_node:main',
             'charging_dock_node = yeyu_control.reference.charging_dock_node:main',
-            'speck_node = yeyu_control.spaek_node:main',
+            'speak_node = yeyu_control.speak_node:main',
             'audio_output_node = yeyu_control.audio_output_node:main',
 
 
