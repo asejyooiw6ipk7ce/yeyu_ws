@@ -29,9 +29,15 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'driving_node = yeyu_control.driving_node:main',
+            'parking_node = yeyu_control.parking_node:main',
             'function_node = yeyu_control.function_node:main',
             'main_node = yeyu_control.main_node:main',
+            'signal_test_node = yeyu_control.signal_test_node:main',
+            'driving_waypoint_node = yeyu_control.driving_waypoint_node:main',
+            'arduino_bridge_node = yeyu_control.arduino_bridge_node:main',
+            'charging_dock_node = yeyu_control.reference.charging_dock_node:main',
+            'speak_node = yeyu_control.speak_node:main',
+            'audio_output_node = yeyu_control.audio_output_node:main',
 
 
         ],
