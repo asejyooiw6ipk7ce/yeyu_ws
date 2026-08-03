@@ -45,6 +45,14 @@ LED_COLOR_MAP = {
     'END': 'RED',
 }
 
+MODE_TTS_MAP = {
+    'START': ('주행을 시작합니다'),
+    'SIGNAL_WAIT': ('신호등을 확인하세요.'),
+    'ACCEL_ZONE': ('속도 표지판을 확인하세요.'),
+    'PARKING': ('주차를 진행합니다.'),
+    'END': ('주행이 완료되었습니다.'),
+}
+
 
 # ================= ArUco 주차용 상태/데이터 클래스 =================
 class ParkingState(Enum):
@@ -155,9 +163,6 @@ class DrivingNode(Node):
             timer_period, self.parking_control_loop,
             callback_group=self.parking_cb_group)
 
-        # TTS 발행
-        self.tts_timer = self.create_timer(1.0, self.publish_tts)
-
         # --- HSV 색상 범위 ---
         self.GREEN_LOWER = np.array([35, 40, 40])
         self.GREEN_HIGHER = np.array([90, 255, 255])
@@ -246,6 +251,7 @@ class DrivingNode(Node):
             return
         self._start_check_timer.cancel()
         self.set_led('START')
+        self.set_tts('START')
         self.send_waypoint(self.waypoints[0])
 
     # ================= Nav2 제어 =================
@@ -271,6 +277,7 @@ class DrivingNode(Node):
         goal_handle = future.result()
         if not goal_handle.accepted:
             self.get_logger().warn('경로 목표가 거부됨')
+            self.notify_tts('경로 목표가 거부되었습니다.')
             return
         self.get_logger().info('[on_goal_response] goal accepted!')
         self.current_goal_handle = goal_handle
@@ -316,10 +323,13 @@ class DrivingNode(Node):
 
                 if self.mode == DrivingMode.SIGNAL_WAIT:
                     self.set_led('SIGNAL_WAIT')
+                    self.set_tts('SIGNAL_WAIT')
                 elif self.mode == DrivingMode.ACCEL_ZONE:
                     self.set_led('ACCEL_ZONE')
+                    self.set_tts('ACCEL_ZONE')
                 elif self.mode == DrivingMode.PARKING:
                     self.set_led('PARKING')
+                    self.set_tts('PARKING')
                     self._reset_parking_state()   # wp5 도착 → ArUco 상태머신 처음부터 시작
             else:
                 self.get_logger().warn(f'예상치 못한 도착 콜백, 현재 mode={self.mode.name}')
@@ -328,6 +338,7 @@ class DrivingNode(Node):
             self.get_logger().info('경로 취소됨')
         elif status == GoalStatus.STATUS_ABORTED:
             self.get_logger().warn(f'주행 실패(ABORTED), 현재 mode={self.mode.name}')
+            self.notify_tts('주행에 실패했습니다.')
         else:
             self.get_logger().warn(f'예상치 못한 nav 상태: {status}')
 
@@ -428,6 +439,8 @@ class DrivingNode(Node):
     def _make_observation(self, ids_flat, corners, selected_index, image_width, image_height) -> Optional[ArucoObservation]:
         if self.camera_matrix is None or self.dist_coeffs is None:
             self._throttled_warn('CameraInfo is not available. Docking control is waiting.')
+            self.notify_tts('카메라 정보를 받지 못해 대기 중입니다.')
+            self._camerainfo_warned = True
             return None
         try:
             rvecs, tvecs, _ = cv2.aruco.estimatePoseSingleMarkers(
@@ -655,6 +668,7 @@ class DrivingNode(Node):
         self.parking_retry_count += 1
         self._transition_parking(ParkingState.RECOVERY, reason)
 
+    # 타임아웃 또는 재시도 횟수 초과시 여기로 옴
     def _transition_parking(self, new_state: ParkingState, reason: str = ''):
         if self.parking_state == new_state:
             return
@@ -662,6 +676,10 @@ class DrivingNode(Node):
         self.parking_state = new_state
         self.parking_state_enter_time = self.get_clock().now()
         self.get_logger().info(f'PARKING STATE: {old.value} -> {new_state.value}. reason={reason}')
+
+        if new_state == ParkingState.FAILED:
+            self.notify_tts('주차에 실패했습니다.')        
+
 
     def get_valid_observation(self) -> Optional[ArucoObservation]:
         if self.latest_observation is None:
@@ -713,6 +731,7 @@ class DrivingNode(Node):
         self.send_waypoint(self.waypoints[5])   # wp6로 감
         self.mode = DrivingMode.NAV_TO_END
         self.set_led('END')
+        self.set_tts('END')
 
     def _draw_debug_image(self, frame, corners, ids, observation, selected_index):
         debug = frame.copy()
@@ -794,15 +813,33 @@ class DrivingNode(Node):
         self.pub_led.publish(String(data=color))
         self.get_logger().info(f'[LED] {color}점등 ({state_key})')
 
-    def publish_tts(self):
-        if self.mode == DrivingMode.SIGNAL_WAIT:
-            self.tts_pub.publish(String(data='신호등을 확인하세요.'))
-        elif self.mode == DrivingMode.ACCEL_ZONE:
-            self.tts_pub.publish(String(data='속도 표지판을 확인하세요.'))
-        elif self.mode == DrivingMode.PARKING:
-            self.tts_pub.publish(String(data='주차를 진행합니다.'))
-        elif self.mode == DrivingMode.NAV_TO_END:
-            self.tts_pub.publish(String(data='주행이 완료되었습니다.'))
+    def set_tts(self, state_key):
+        tts_info = self.MODE_TTS_MAP.get(state_key)
+        if tts_info is None:
+            self.get_logger().warn(f'[TTS] 알 수 없는 상태키: {state_key}')
+            return
+        text, sound_id = tts_info
+
+        msg = AudioCommand()
+        msg.type = AudioCommand.TYPE_TTS
+        msg.text = text
+        msg.sound_id = sound_id
+        msg.volume = 1.0
+        msg.repeat = 1
+        self.audio_pub.publish(msg)
+        self.get_logger().info(f'[TTS] {text} 재생 ({state_key})')
+
+    def notify_tts(self, text: str, sound_id: str = 'warning'):
+        """모드와 무관하게, 특정 이벤트 발생 시점에 바로 호출하는 TTS 알림"""
+        msg = AudioCommand()
+        msg.type = AudioCommand.TYPE_TTS
+        msg.text = text
+        msg.sound_id = sound_id
+        msg.volume = 1.0
+        msg.repeat = 1
+        self.audio_pub.publish(msg)
+        self.get_logger().info(f'[TTS] {text} 재생 (event)')
+
 
     def destroy_node(self):
         for _ in range(5):
