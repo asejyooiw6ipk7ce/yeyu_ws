@@ -58,9 +58,9 @@ class ArduinoSensorBridge(Node):
         self.rx_checksum = 0
 
         # 퍼블리셔 선언
-        self.ir_l_pub = self.create_publisher(Bool, 'sensor_bridge/ir_l_state', 10)
-        self.ir_c_pub = self.create_publisher(Bool, 'sensor_bridge/ir_c_state', 10)
-        self.ir_r_pub = self.create_publisher(Bool, 'sensor_bridge/ir_r_state', 10)
+        self.ir_l_state_pub = self.create_publisher(Bool, 'sensor_bridge/ir_l_state', 10)
+        self.ir_c_state_pub = self.create_publisher(Bool, 'sensor_bridge/ir_c_state', 10)
+        self.ir_r_state_pub = self.create_publisher(Bool, 'sensor_bridge/ir_r_state', 10)
         self.rgb_state_pub = self.create_publisher(ColorRGBA, 'sensor_bridge/rgb_state', 10)
         self.rx_sequence_pub = self.create_publisher(UInt8, 'sensor_bridge/rx_sequence', 10)
         
