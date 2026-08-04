@@ -11,7 +11,9 @@ START_BYTE = 0xAA          # 편지봉투 앞 스티커
 END_BYTE_1 = 0xAA          # 편지봉투 뒷 스티커 반쪽
 END_BYTE_2 = 0xEE          # 편지봉투 뒷 스티커 반쪽
 PKT_SENSOR_STATE = 0x31    # 아두이노가 보낸 상태보고서 편지번호
+PKT_SET_RELAY = 0x41       # 릴레이 명령 할 편지번호
 PKT_SET_RGB = 0x42         # LED 명령 할 편지 번호
+PKT_SET_ALL = 0x43         # 둘 다 명령 할 편지 번호
 PKT_PING = 0x7F            # 생사확인할 편지 번호
 MAX_PAYLOAD_LEN = 32       # 편지 속에 담길 수 있는 최대 알맹이 크기
 
@@ -34,7 +36,8 @@ class ArduinoSensorBridge(Node):
     def __init__(self):
         super().__init__('arduino_sensor_bridge')
 
-        self.declare_parameter('port', '/dev/tb3_sensor')
+        # [설명] ROS 2 파라미터 선언부입니다. 기본 포트는 '/dev/ttyACM0'으로 설정됩니다.
+        self.declare_parameter('port', '/dev/ttyACM0')
         # [설명] 기본 Baudrate는 Arduino 펌웨어 설정과 일치하도록 115200으로 설정합니다.
         self.declare_parameter('baudrate', 115200)
         self.declare_parameter('read_period_sec', 0.005)
@@ -58,14 +61,15 @@ class ArduinoSensorBridge(Node):
         self.rx_checksum = 0
 
         # 퍼블리셔 선언
-        self.ir_l_pub = self.create_publisher(Bool, 'sensor_bridge/ir_l_state', 10)
-        self.ir_c_pub = self.create_publisher(Bool, 'sensor_bridge/ir_c_state', 10)
-        self.ir_r_pub = self.create_publisher(Bool, 'sensor_bridge/ir_r_state', 10)
+        self.relay_state_pub = self.create_publisher(Bool, 'sensor_bridge/relay_state', 10)
+        self.button_state_pub = self.create_publisher(Bool, 'sensor_bridge/button_state', 10)
         self.rgb_state_pub = self.create_publisher(ColorRGBA, 'sensor_bridge/rgb_state', 10)
         self.rx_sequence_pub = self.create_publisher(UInt8, 'sensor_bridge/rx_sequence', 10)
-        
+
         # 서브스크라이버 선언
+        self.relay_cmd_sub = self.create_subscription(Bool, 'sensor_bridge/relay_cmd', self.relay_cmd_callback, 10)
         self.rgb_cmd_sub = self.create_subscription(ColorRGBA, 'sensor_bridge/rgb_cmd', self.rgb_cmd_callback, 10)
+        self.all_cmd_sub = self.create_subscription(ColorRGBA, 'sensor_bridge/rgb_cmd_with_relay_on', self.rgb_cmd_with_relay_on_callback, 10)
 
         # 시리얼 포트 오픈
         self.open_serial()
@@ -148,6 +152,10 @@ class ArduinoSensorBridge(Node):
             return 255
         return int(value * 255.0)
 
+    def relay_cmd_callback(self, msg: Bool):
+        relay_state = 1 if msg.data else 0
+        self.send_packet(PKT_SET_RELAY, [relay_state])
+
     # [설명] RGB LED 제어 명령 콜백 함수입니다.
     # 예시: ROS 2에서 r=1.0, g=0.0, b=0.0 (빨간색) 명령을 받으면,
     # clamp_color_to_u8를 거쳐 [255, 0, 0] (16진수로 FF 00 00) 데이터가 Payload로 구성되어 아두이노로 전송됩니다.
@@ -157,6 +165,11 @@ class ArduinoSensorBridge(Node):
         blue = self.clamp_color_to_u8(msg.b)
         self.send_packet(PKT_SET_RGB, [red, green, blue])
 
+    def rgb_cmd_with_relay_on_callback(self, msg: ColorRGBA):
+        red = self.clamp_color_to_u8(msg.r)
+        green = self.clamp_color_to_u8(msg.g)
+        blue = self.clamp_color_to_u8(msg.b)
+        self.send_packet(PKT_SET_ALL, [1, red, green, blue])
 
     def ping_timer_callback(self):
         self.send_packet(PKT_PING, [])
@@ -276,33 +289,27 @@ class ArduinoSensorBridge(Node):
 
     # [설명] 아두이노에서 전송한 상태 데이터를 해석하는 함수입니다.
     def parse_sensor_state(self, length: int, sequence: int, payload: List[int]):
-        # [설명] 센서 상태 수신 데이터의 페이로드는 반드시 5바이트여야 합니다. (트래킹 L/C/R, R, G, B)
-        if length != 6:
+        # [설명] 센서 상태 수신 데이터의 페이로드는 반드시 5바이트여야 합니다. (릴레이, 버튼, R, G, B)
+        if length != 5:
             self.get_logger().warn(f'Invalid sensor state payload length: {length}')
             return
 
         # [설명] 페이로드 바이트 배열을 각각의 하드웨어 상태 정보로 매핑 및 해석합니다.
-        ir_l_state = payload[0] != 0
-        ir_c_state = payload[1] != 0
-        ir_r_state = payload[2] != 0
-        red = payload[3]
-        green = payload[4]
-        blue = payload[5]
-        
+        relay_state = payload[0] != 0
+        button_state = payload[1] != 0
+        red = payload[2]
+        green = payload[3]
+        blue = payload[4]
 
         # [설명] 해석된 데이터를 바탕으로 각각 ROS 2 토픽에 맞춰 퍼블리시를 수행합니다.
-        ir_l_msg = Bool()
-        ir_l_msg.data = ir_l_state
-        self.ir_l_state_pub.publish(ir_l_msg)
-        
-        ir_c_msg = Bool()
-        ir_c_msg.data = ir_c_state
-        self.ir_c_state_pub.publish(ir_c_msg)
-        
-        ir_r_msg = Bool()
-        ir_r_msg.data = ir_r_state
-        self.ir_r_state_pub.publish(ir_r_msg)
-        
+        relay_msg = Bool()
+        relay_msg.data = relay_state
+        self.relay_state_pub.publish(relay_msg)
+
+        button_msg = Bool()
+        button_msg.data = button_state
+        self.button_state_pub.publish(button_msg)
+
         # [설명] 아두이노에서 수신한 0 ~ 255 정수형 RGB 값을 ROS 2 표준에 맞추어 
         # 255.0으로 나눈 뒤 0.0 ~ 1.0의 float 값 범위로 변환하여 최종 퍼블리시합니다.
         rgb_msg = ColorRGBA()
@@ -311,13 +318,10 @@ class ArduinoSensorBridge(Node):
         rgb_msg.b = float(blue) / 255.0
         rgb_msg.a = 1.0
         self.rgb_state_pub.publish(rgb_msg)
-        
+
         seq_msg = UInt8()
         seq_msg.data = sequence & 0xFF
         self.rx_sequence_pub.publish(seq_msg)
-        
-        
-
 
 
 def main(args=None):
