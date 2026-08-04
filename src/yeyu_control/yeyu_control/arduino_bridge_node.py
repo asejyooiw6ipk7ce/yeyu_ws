@@ -293,15 +293,15 @@ class ArduinoSensorBridge(Node):
         # [설명] 해석된 데이터를 바탕으로 각각 ROS 2 토픽에 맞춰 퍼블리시를 수행합니다.
         ir_l_msg = Bool()
         ir_l_msg.data = ir_l_state
-        self.ir_l_state_pub.publish(ir_l_msg)
+        self.ir_l_pub.publish(ir_l_msg)
         
         ir_c_msg = Bool()
         ir_c_msg.data = ir_c_state
-        self.ir_c_state_pub.publish(ir_c_msg)
+        self.ir_c_pub.publish(ir_c_msg)
         
         ir_r_msg = Bool()
         ir_r_msg.data = ir_r_state
-        self.ir_r_state_pub.publish(ir_r_msg)
+        self.ir_r_pub.publish(ir_r_msg)
         
         # [설명] 아두이노에서 수신한 0 ~ 255 정수형 RGB 값을 ROS 2 표준에 맞추어 
         # 255.0으로 나눈 뒤 0.0 ~ 1.0의 float 값 범위로 변환하여 최종 퍼블리시합니다.
