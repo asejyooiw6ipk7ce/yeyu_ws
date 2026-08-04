@@ -4,9 +4,4 @@ log/
 __pycache__/
 *.pyc
 .vscode/
-<<<<<<< HEAD
 .idea/
-=======
-.idea/
-bin/
->>>>>>> f2a026dfbaf41651922d5fb6bce00d2eecfce372
