@@ -15,6 +15,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/DrivingStatus.msg"
   "msg/FunctionStatus.msg"
   "msg/AudioCommand.msg"
+  "srv/StartRetry.srv" 
   DEPENDENCIES builtin_interfaces std_msgs
 )
 
