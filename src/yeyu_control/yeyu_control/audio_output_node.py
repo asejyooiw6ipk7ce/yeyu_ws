@@ -13,7 +13,7 @@ from ament_index_python.packages import get_package_share_directory
 
 from gtts import gTTS
 
-from robot_audio_interfaces.msg import AudioCommand
+from yeyu_msgs.msg import AudioCommand
 
 class AudioOutputNode(Node):
     def __init__(self):

@@ -9,3 +9,7 @@ class DrivingMode(Enum):
     SIGNAL_WAIT = auto()
     NAV_TO_ACCEL = auto()
     ACCEL_ZONE = auto()
+    NAV_TO_END = auto()
+    E_STOP = auto()
+    RESULT_SUMMARY = auto()
+    RETRY = auto()

@@ -1,0 +1,11 @@
+from enum import Enum
+
+
+class ParkingState(Enum):
+    SEARCH_MARKER = 'SEARCH_MARKER'
+    APPROACH_PRE_DOCK = 'APPROACH_PRE_DOCK'
+    ALIGN_AXIS = 'ALIGN_AXIS'
+    FINAL_APPROACH = 'FINAL_APPROACH'
+    DONE = 'DONE'
+    RECOVERY = 'RECOVERY'
+    FAILED = 'FAILED'
