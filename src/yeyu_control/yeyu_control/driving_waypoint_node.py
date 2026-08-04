@@ -21,6 +21,8 @@ from action_msgs.msg import GoalStatus
 from sensor_msgs.msg import CompressedImage, CameraInfo
 from geometry_msgs.msg import Twist
 from std_msgs.msg import String
+# 여기추가 밑 한줄
+from std_msgs.msg import ColorRGBA
 from std_srvs.srv import Trigger
 from yeyu_msgs.msg import DrivingStatus, AudioCommand
 from yeyu_msgs.srv import StartRetry
@@ -40,12 +42,13 @@ NAV_ARRIVAL_TRANSITIONS = {
     DrivingMode.NAV_TO_PARKING: DrivingMode.PARKING,
 }
 
+# 여기 수정
 LED_COLOR_MAP = {
-    'START': 'RED',
-    'SIGNAL_WAIT': 'GREEN',
-    'ACCEL_ZONE': 'BLUE',
-    'PARKING': 'YELLOW',
-    'END': 'RED',
+    'START':       (1.0, 0.0, 0.0),          # RED (255,0,0)
+    'SIGNAL_WAIT': (11/255, 1.0, 11/255),    # GREEN (11,255,11)
+    'ACCEL_ZONE':  (0.0, 1.0, 1.0),          # BLUE (0,255,255)
+    'PARKING':     (1.0, 70/255, 0.0),       # YELLOW (255,70,0)
+    'END':         (1.0, 0.0, 0.0),          # RED
 }
 
 
@@ -176,7 +179,9 @@ class DrivingNode(Node):
             callback_group=self.camera_cb_group)
 
         self.param_client = self.create_client(SetParameters, '/controller_server/set_parameters')
-        self.pub_led = self.create_publisher(String, '/led_command', 10)
+        # 여기 추가
+        #self.pub_led = self.create_publisher(String, '/led_command', 10)
+        self.pub_led = self.create_publisher(ColorRGBA, 'sensor_bridge/rgb_cmd', 10)
         self.cmd_pub = self.create_publisher(Twist, '/cmd_vel', 10)
         self.status_pub = self.create_publisher(DrivingStatus, '/driving_status', 10)
         self.image_pub = self.create_publisher(CompressedImage, '/camera/image_flipped', 10)
@@ -1045,7 +1050,13 @@ class DrivingNode(Node):
         if color is None:
             self.get_logger().warn(f'[LED] 알 수 없는 상태키: {state_key}')
             return
-        self.pub_led.publish(String(data=color))
+        # 여기수정(주석처리가 원래버전 그 뒤5줄이 새로 생긴 줄)
+        # self.pub_led.publish(String(data=color))
+        # self.get_logger().info(f'[LED] {color}점등 ({state_key})')
+        msg = ColorRGBA()
+        msg.r, msg.g, msg.b = color
+        msg.a = 1.0
+        self.pub_led.publish(msg)
         self.get_logger().info(f'[LED] {color}점등 ({state_key})')
 
     # ================= TTS 제어 =================
