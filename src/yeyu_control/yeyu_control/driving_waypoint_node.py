@@ -55,6 +55,7 @@ class ParkingState(Enum):
     FAILED = 'FAILED'
 
 
+# =========== 마커를 한 번 인식했을 때의 결과값 모음 클래스 ===========
 @dataclass
 class ArucoObservation:
     marker_id: int
