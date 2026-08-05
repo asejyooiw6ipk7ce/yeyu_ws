@@ -3,7 +3,7 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
 from yeyu_msgs.msg import SystemState as SystemStateMsg, DrivingStatus, FunctionStatus
-from src.yeyu_control.yeyu_control.system_state import SystemState
+from yeyu_control.states.system_state import SystemState
 
 class MainNode(Node):
     def __init__(self):
