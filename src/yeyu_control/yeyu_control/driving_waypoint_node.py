@@ -85,6 +85,20 @@ class DrivingNode(Node):
     def __init__(self):
         super().__init__('driving_node')
 
+        self.wp_index = 0
+        self.green_count = 0
+        self.blue_count = 0
+        self.signal_wait_enter_time = None
+        self.accel_zone_enter_time = None
+        self.ACCEL_GRACE_PERIOD_SEC = 2.0   # 표지판 인식 후 가속 유예 시간 (실측 후 조정)
+        self.accel_zone_max_speed = 0.0   # 가속구간 진입 후 관측된 최고 속도
+        self.ACCEL_TARGET_SPEED = 0.18    # 이 속도를 한 번이라도 넘기면 PASS
+
+        self.ACCEL_SUSTAIN_SEC = 0.5           # 목표 속도 이상을 이만큼 연속 유지하면 PASS
+        self.ACCEL_DIP_TOLERANCE_SEC = 0.15   # 이 시간 이내의 짧은 하락은 봐줌
+        self.accel_last_below_time = None     # 마지막으로 기준 밑으로 떨어진 시각
+        self.accel_sustain_start = None        # 목표 속도 이상이 시작된 시각 (끊기면 None으로 리셋)
+
         # --- 콜백 그룹 ---
         self.camera_cb_group = ReentrantCallbackGroup()
         self.nav_cb_group = ReentrantCallbackGroup()
@@ -97,10 +111,6 @@ class DrivingNode(Node):
             'ACCEL_ZONE': StageResult.IN_PROGRESS,
             'PARKING': StageResult.IN_PROGRESS,
         }
-        self.speed_violation_start = None
-        self.signal_wait_enter_time = None
-        self.accel_zone_enter_time = None
-        self.ACCEL_GRACE_PERIOD_SEC = 2.0   # 표지판 인식 후 가속 유예 시간 (실측 후 조정)
 
         # --- 재시험 상태 ---
         self.run_phase = RunPhase.MAIN
@@ -117,10 +127,6 @@ class DrivingNode(Node):
         )
         with open(wp_path) as f:
             self.waypoints = yaml.safe_load(f)['waypoints']
-
-        self.wp_index = 0
-        self.green_count = 0
-        self.blue_count = 0
 
         # --- Nav2 액션 클라이언트 ---
         self.nav_client = ActionClient(
@@ -184,7 +190,7 @@ class DrivingNode(Node):
         self.pub_led = self.create_publisher(ColorRGBA, 'sensor_bridge/rgb_cmd', 10)
         self.cmd_pub = self.create_publisher(Twist, '/cmd_vel', 10)
         self.status_pub = self.create_publisher(DrivingStatus, '/driving_status', 10)
-        self.image_pub = self.create_publisher(CompressedImage, '/camera/image_flipped', 10)
+        self.image_pub = self.create_publisher(CompressedImage, '/camera/image_flipped/compressed', 10)
         self.debug_pub = self.create_publisher(CompressedImage, '/parking_debug_image/compressed', 10)
         self.audio_pub = self.create_publisher(AudioCommand, '/audio/command', 10)
 
@@ -275,8 +281,8 @@ class DrivingNode(Node):
         self._start_check_timer = self.create_timer(0.3, self._try_start)
 
     def _try_start(self):
-        if self.pub_led.get_subscription_count() == 0:
-            self.get_logger().warn('[LED] 구독자 대기 중...')
+        if self.pub_led.get_subscription_count() == 0 & self.audio_pub.get_subscription_count()==0:
+            # self.get_logger().warn('[LED] 구독자, [audio]구독자 대기 중...')
             return
         self._start_check_timer.cancel()
         self.set_led('START')
@@ -443,8 +449,9 @@ class DrivingNode(Node):
             if self.wp_index == 3:   # wp4 도착
                 if self.run_phase == RunPhase.RETRY:
                     if self.stage_results['ACCEL_ZONE'] == StageResult.IN_PROGRESS:
-                        self._report_stage('ACCEL_ZONE', StageResult.PASS, '가속구간 규정 속도 유지')
-                        self.notify_tts('가속구간을 규정 속도 내로 통과했습니다.')
+                        reason = f'{self.ACCEL_SUSTAIN_SEC}초 연속 유지 실패 (최고 {self.accel_zone_max_speed:.3f} m/s)'
+                        self._report_stage('ACCEL_ZONE', StageResult.FAIL, reason)
+                        self.notify_tts('가속구간에서 충분히 가속하지 못했습니다.')
                     self._finish_retry()
                     return
 
@@ -452,8 +459,9 @@ class DrivingNode(Node):
                 self.mode = DrivingMode.NAV_TO_PARKING
                 self.set_speed(0.13)
                 if self.stage_results['ACCEL_ZONE'] == StageResult.IN_PROGRESS:
-                    self._report_stage('ACCEL_ZONE', StageResult.PASS, '가속구간 규정 속도 유지')
-                    self.notify_tts('가속구간을 규정 속도 내로 통과했습니다.')
+                    reason = f'{self.ACCEL_SUSTAIN_SEC}초 연속 유지 실패 (최고 {self.accel_zone_max_speed:.3f} m/s)'
+                    self._report_stage('ACCEL_ZONE', StageResult.FAIL, reason)
+                    self.notify_tts('가속구간에서 충분히 가속하지 못했습니다.')
                 self.send_waypoint(self.waypoints[4])
                 return
 
@@ -589,8 +597,10 @@ class DrivingNode(Node):
                 self.mode = DrivingMode.NAV_TO_PARKING
                 self.set_speed(0.22)
                 self.accel_zone_enter_time = self.get_clock().now()
+                self.accel_zone_max_speed = 0.0
+                self.accel_sustain_start = None      # 추가
                 self.wp_index = 3
-                self.send_waypoint(self.waypoints[3])  # wp4로 감
+                self.send_waypoint(self.waypoints[3])
         else:
             self.blue_count = 0
 
@@ -676,30 +686,40 @@ class DrivingNode(Node):
         if self.is_estopped:
             return
         if self.mode != DrivingMode.NAV_TO_PARKING or self.accel_zone_enter_time is None:
-            self.speed_violation_start = None
+            self.accel_sustain_start = None
+            self.accel_last_below_time = None
             return
 
-        since_enter = (self.get_clock().now() - self.accel_zone_enter_time).nanoseconds / 1e9
         linear_x = msg.twist.twist.linear.x
-        self.get_logger().info(f'linear_x={linear_x:.3f}, since_enter={since_enter:.2f}s')
+        self.get_logger().info(f'[ACCEL_ZONE] 현재 속도: {linear_x:.3f} m/s')   # ← 여기 추가
 
-        if since_enter < self.ACCEL_GRACE_PERIOD_SEC:
-            return
+
+        if linear_x > self.accel_zone_max_speed:
+            self.accel_zone_max_speed = linear_x
 
         now = self.get_clock().now()
-        if linear_x < 0.2 or linear_x > 0.22:
-            if self.speed_violation_start is None:
-                self.speed_violation_start = now
-            elapsed = (now - self.speed_violation_start).nanoseconds / 1e9
-            if elapsed >= 0.3:
-                if self.stage_results['ACCEL_ZONE'] != StageResult.FAIL:
-                    reason = f'{elapsed:.2f}초간 속도 이탈 ({linear_x:.3f} m/s, 규정 0.20~0.22)'
-                    self.get_logger().warn(f'[ACCEL_ZONE] {reason}')
-                    self._report_stage('ACCEL_ZONE', StageResult.FAIL, reason)
-                    self.notify_tts('규정 속도를 벗어났습니다.')
-                    # FAIL이 확정돼도 여기서 유턴하지 않음 — wp4까지는 계속 이동
+
+        if linear_x >= self.ACCEL_TARGET_SPEED:
+            if self.accel_sustain_start is None:
+                self.accel_sustain_start = now   # 목표 속도 이상 시작된 순간 기록
+            self.accel_last_below_time = None
+
+            sustained = (now - self.accel_sustain_start).nanoseconds / 1e9
+            if sustained >= self.ACCEL_SUSTAIN_SEC:
+                if self.stage_results['ACCEL_ZONE'] == StageResult.IN_PROGRESS:
+                    reason = (f'{sustained:.2f}초간 {self.ACCEL_TARGET_SPEED} m/s 이상 유지(허용오차 포함) '
+                          f'(최고 {self.accel_zone_max_speed:.3f} m/s)')
+                    self._report_stage('ACCEL_ZONE', StageResult.PASS, reason)
+                    self.get_logger().info(f'[ACCEL_ZONE] {reason}')
+                    self.notify_tts('가속구간을 규정 속도로 통과했습니다.')
         else:
-            self.speed_violation_start = None
+            if self.accel_last_below_time is None:
+                self.accel_last_below_time = now
+
+            below_duration = (now -self.accel_last_below_time).nanoseconds / 1e9
+            if below_duration > self.ACCEL_DIP_TOLERANCE_SEC:
+
+                self.accel_sustain_start = None   # 목표 속도 밑으로 떨어지면 리셋, 처음부터 다시 셈
 
     def detect_signal_color(self, cv_image):
         hsv = cv2.cvtColor(cv_image, cv2.COLOR_BGR2HSV)
