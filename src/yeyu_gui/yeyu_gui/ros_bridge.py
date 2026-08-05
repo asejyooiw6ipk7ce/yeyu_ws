@@ -57,7 +57,7 @@ class DashboardRosNode(Node):
         self.create_subscription(BatteryState, '/battery_state', self.on_battery, sensor_qos)
         self.create_subscription(LaserScan, '/scan', self.on_scan, sensor_qos)
         self.create_subscription(
-            CompressedImage, '/camera/image_flipped', self.on_image, sensor_qos)
+            CompressedImage, '/camera/image_flipped/compressed', self.on_image, sensor_qos)
 
         self.estop_client = self.create_client(Trigger, '/emergency_stop')
         self.retry_client = self.create_client(StartRetry, '/start_retry')
