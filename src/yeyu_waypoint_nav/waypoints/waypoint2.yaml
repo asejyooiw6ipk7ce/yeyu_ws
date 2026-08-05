@@ -26,11 +26,11 @@ waypoints:
   y: -8.1
   yaw: 0.15
 - name: wp6
-  x: -0.35
+  x: -1.0
   y: -8.1
-  yaw: -2.9
+  yaw: 1.5
 - name: wp7
-  x: -0.1
-  y: -6.0
-  yaw: 0.15
+  x: 0.4
+  y: -5.5
+  yaw: 1.5
 
