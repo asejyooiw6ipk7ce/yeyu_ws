@@ -287,15 +287,16 @@ class DrivingNode(Node):
         self._start_check_timer.cancel()
         self.set_led('START')
         self.notify_tts('주행을 시작합니다.')
+        self._report_stage('NAV_WAYPOINT', StageResult.IN_PROGRESS, '')
         self.send_waypoint(self.waypoints[0])
 
     # ================= 구간 결과 보고 (공통 헬퍼) =================
-    def _report_stage(self, stage: str, result: StageResult, reason: str = ''):
-        """구간 결과를 stage_results에 반영하고, 동시에 DrivingStatus로도 즉시 발행"""
-        self.stage_results[stage] = result
+    def _publish_status(self, mode: str, result: str, reason: str = ''):
+        """/driving_status를 그대로 발행 (stage_results는 건드리지 않음).
+        NAV_TO_END처럼 채점 대상이 아닌 '이동 중' 표시에도 재사용."""
         msg = DrivingStatus()
-        msg.mode = stage
-        msg.result = result.name
+        msg.mode = mode
+        msg.result = result
         msg.reason = reason
         msg.wp_index = self.wp_index
         obs = self.latest_observation
@@ -303,6 +304,11 @@ class DrivingNode(Node):
         msg.error_distance = float(obs.z_m - self.parking_stop_distance_m) if obs is not None else 0.0
         msg.retry_count = self.parking_retry_count
         self.status_pub.publish(msg)
+
+    def _report_stage(self, stage: str, result: StageResult, reason: str = ''):
+        """구간 결과를 stage_results에 반영하고, 동시에 DrivingStatus로도 즉시 발행"""
+        self.stage_results[stage] = result
+        self._publish_status(stage, result.name, reason)
 
     # ================= 재시험 서비스 콜백 =================
     def on_start_retry_request(self, request, response):
@@ -328,7 +334,7 @@ class DrivingNode(Node):
         entry = RETRY_ENTRY[target]
         self.run_phase = RunPhase.RETRY
         self.retry_target = target
-        self.stage_results[target] = StageResult.IN_PROGRESS   # 재시험이므로 결과 리셋
+        self._report_stage(target, StageResult.IN_PROGRESS, '재시험 시작')   # 결과 리셋 + GUI에 즉시 반영
         self.green_count = 0
         self.blue_count = 0
         self.speed_violation_start = None
@@ -354,6 +360,7 @@ class DrivingNode(Node):
         # run_phase, retry_target은 여기서 바꾸지 않음 — wp7 도착 후 결과 발표까지 유지
         self.wp_index = HOME_WP_INDEX
         self.mode = DrivingMode.NAV_TO_END
+        self._publish_status('NAV_TO_END', 'IN_PROGRESS', '재시험 종료, 도착점으로 복귀 중')
         self.send_waypoint(self.waypoints[HOME_WP_INDEX])
 
     def _announce_retry_result(self, target: str):
@@ -462,12 +469,14 @@ class DrivingNode(Node):
                     reason = f'{self.ACCEL_SUSTAIN_SEC}초 연속 유지 실패 (최고 {self.accel_zone_max_speed:.3f} m/s)'
                     self._report_stage('ACCEL_ZONE', StageResult.FAIL, reason)
                     self.notify_tts('가속구간에서 충분히 가속하지 못했습니다.')
+                self._report_stage('NAV_WAYPOINT', StageResult.IN_PROGRESS, '')
                 self.send_waypoint(self.waypoints[4])
                 return
 
             if self.wp_index == 5:   # wp6 도착 → wp7로
                 self.wp_index = 6
                 self.mode = DrivingMode.NAV_TO_END
+                self._publish_status('NAV_TO_END', 'IN_PROGRESS', '도착점으로 이동 중')
                 self.send_waypoint(self.waypoints[6])
                 return
 
@@ -502,8 +511,10 @@ class DrivingNode(Node):
                 if self.mode == DrivingMode.SIGNAL_WAIT:
                     self.set_led('SIGNAL_WAIT')
                     self.signal_wait_enter_time = self.get_clock().now()
+                    self._report_stage('SIGNAL_WAIT', StageResult.IN_PROGRESS, '')
                 elif self.mode == DrivingMode.ACCEL_ZONE:
                     self.set_led('ACCEL_ZONE')
+                    self._report_stage('ACCEL_ZONE', StageResult.IN_PROGRESS, '')
                 elif self.mode == DrivingMode.PARKING:
                     self.set_led('PARKING')
                     self._reset_parking_state()
@@ -585,6 +596,7 @@ class DrivingNode(Node):
         """SIGNAL_WAIT 판정 완료 후: 항상 wp3로 이동 (본 코스든 재시험이든 동일)"""
         self.wp_index = 2
         self.mode = DrivingMode.NAV_TO_ACCEL
+        self._report_stage('NAV_WAYPOINT', StageResult.IN_PROGRESS, '')
         self.send_waypoint(self.waypoints[2])
 
     def _process_speed_sign(self, flipped):
@@ -600,6 +612,7 @@ class DrivingNode(Node):
                 self.accel_zone_max_speed = 0.0
                 self.accel_sustain_start = None      # 추가
                 self.wp_index = 3
+                self._report_stage('NAV_WAYPOINT', StageResult.IN_PROGRESS, '')
                 self.send_waypoint(self.waypoints[3])
         else:
             self.blue_count = 0
@@ -786,6 +799,7 @@ class DrivingNode(Node):
                     self.wp_index = 5
                     self.mode = DrivingMode.NAV_TO_END
                     self.set_led('END')
+                    self._publish_status('NAV_TO_END', 'IN_PROGRESS', '주차 실패, 도착점으로 이동 중')
                     self.send_waypoint(self.waypoints[5])
             self._publish_cmd(Twist())
             return
@@ -991,6 +1005,7 @@ class DrivingNode(Node):
         self.wp_index = 5
         self.mode = DrivingMode.NAV_TO_END
         self.set_led('END')
+        self._publish_status('NAV_TO_END', 'IN_PROGRESS', '주차 완료, 도착점으로 이동 중')
         self.send_waypoint(self.waypoints[5])
 
     def _draw_debug_image(self, frame, corners, ids, observation, selected_index):

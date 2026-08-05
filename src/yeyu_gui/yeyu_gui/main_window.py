@@ -24,6 +24,7 @@ MODE_LABELS = {
     'SIGNAL_WAIT': '신호대기 중',
     'ACCEL_ZONE': '가속구간 통과 중',
     'PARKING': '직각주차 중',
+    'NAV_TO_END': '도착점으로 이동 중',
 }
 RESULT_COLORS = {
     'PASS': QColor('#2e7d32'),
@@ -121,8 +122,8 @@ class MainWindow(QMainWindow):
         layout.addWidget(card, 0, 2)
         card, self.obstacle_value = self._make_card('장애물 최소거리')
         layout.addWidget(card, 0, 3)
-        card, self.waypoint_value = self._make_card('현재 웨이포인트')
-        layout.addWidget(card, 0, 4)
+        # card, self.waypoint_value = self._make_card('현재 웨이포인트')
+        # layout.addWidget(card, 0, 4)
         return layout
 
     # ================= 카메라 =================
@@ -234,10 +235,8 @@ class MainWindow(QMainWindow):
         mode = status['mode']
         result = status['result']
         reason = status['reason']
-        wp_index = status['wp_index']
 
         self.mode_value.setText(MODE_LABELS.get(mode, mode or '--'))
-        self.waypoint_value.setText(f'wp{wp_index + 1} / {TOTAL_WAYPOINTS}')
 
         if mode in STAGE_ROWS:
             row = STAGE_ROWS.index(mode)
