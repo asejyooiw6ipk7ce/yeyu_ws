@@ -51,17 +51,41 @@ TRAJECTORY_IDLE_STYLE = 'QPushButton { border: 1px solid #b0b0b0; }'
 
 
 class MainWindow(QMainWindow):
-
-    def __init__(self, ros_node: DashboardRosNode):
+    def __init__(self):
         super().__init__()
-        self.ros_node = ros_node
-        self.active_trajectory = 1
-        self.pending_retry_button = None
-
-        self.setWindowTitle('주행 대시보드')
-        self.resize(1100, 780)
+        self.setWindowTitle("YEYU 자율주행 사전검증 로봇 · GUI")
+        self.resize(1280, 820)
+        self.setStyleSheet(f"background: {theme.BG};")
 
         central = QWidget()
+        root = QHBoxLayout(central)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
+
+        self.sidebar = Sidebar()
+        root.addWidget(self.sidebar)
+
+        right = QWidget()
+        right_layout = QVBoxLayout(right)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(0)
+
+        self.topbar = TopBar()
+        right_layout.addWidget(self.topbar)
+
+        self.stack = QStackedWidget()
+        self.screens = {
+            "dashboard": DashboardScreen(),
+            "monitor": MonitorScreen(),
+            "results": ResultsScreen(),
+            "settings": SettingsScreen(),
+        }
+        for key in ["dashboard", "monitor", "results", "settings"]:
+            self.stack.addWidget(self.screens[key])
+
+        right_layout.addWidget(self.stack)
+        root.addWidget(right, 1)
+
         self.setCentralWidget(central)
         root = QVBoxLayout(central)
 
@@ -124,8 +148,8 @@ class MainWindow(QMainWindow):
         layout.addWidget(card, 0, 2)
         card, self.obstacle_value = self._make_card('장애물 최소거리')
         layout.addWidget(card, 0, 3)
-        # card, self.waypoint_value = self._make_card('현재 웨이포인트')
-        # layout.addWidget(card, 0, 4)
+        card, self.waypoint_value = self._make_card('현재 웨이포인트')
+        layout.addWidget(card, 0, 4)
         return layout
 
     # ================= 카메라 =================
@@ -237,6 +261,7 @@ class MainWindow(QMainWindow):
         mode = status['mode']
         result = status['result']
         reason = status['reason']
+        wp_index = status['wp_index']
 
         if mode == 'RETRY_COMPLETE':
             # reason에 재시험 대상 구간명이 실려 온다 (예: 'PARKING' -> '직각주차 재시험 종료')
@@ -251,6 +276,7 @@ class MainWindow(QMainWindow):
             return
 
         self.mode_value.setText(MODE_LABELS.get(mode, mode or '--'))
+        self.waypoint_value.setText(f'wp{wp_index + 1} / {TOTAL_WAYPOINTS}')
 
         if mode in STAGE_ROWS:
             row = STAGE_ROWS.index(mode)
@@ -286,61 +312,22 @@ class MainWindow(QMainWindow):
         if percentage < 0:
             self.battery_value.setText(f'{voltage:.1f}V')
             return
-        pct = percentage * 100.0 if percentage <= 1.5 else percentage
-        self.battery_value.setText(f'{pct:.0f}% / {voltage:.1f}V')
 
-    @pyqtSlot(float)
-    def _on_obstacle(self, min_range: float):
-        if min_range == NO_OBSTACLE_READING:
-            self.obstacle_value.setText('감지 없음')
-            self.obstacle_value.setStyleSheet('font-size: 18px; font-weight: bold;')
-            return
-        self.obstacle_value.setText(f'{min_range:.2f} m')
-        color = '#c62828' if min_range < 0.3 else '#212121'
-        self.obstacle_value.setStyleSheet(f'font-size: 18px; font-weight: bold; color: {color};')
+        self.ros_worker = RosWorker()
+        self.ros_worker.status_received.connect(self._on_status_received)
+        self.ros_worker.connection_changed.connect(self.topbar.set_ros_connected)
+        self.ros_worker.error_occurred.connect(self._on_ros_error)
+        self.ros_worker.start()
 
-    @pyqtSlot(QImage)
-    def _on_image(self, image: QImage):
-        pixmap = QPixmap.fromImage(image).scaled(
-            self.camera_label.width(), self.camera_label.height(),
-            Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        self.camera_label.setPixmap(pixmap)
+    def _on_status_received(self, data: dict):
+        # 지금은 대시보드만 반영. 나중에 monitor_screen 등에도 필요하면 여기서 같이 호출.
+        self.screens["dashboard"].apply_live_status(data)
 
-    # ================= 버튼 동작 =================
-    def _on_estop_clicked(self):
-        confirm = QMessageBox.question(
-            self, '비상정지 확인', '비상정지를 실행하시겠습니까?',
-            QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-        if confirm != QMessageBox.Yes:
-            return
-        self.estop_button.setEnabled(False)
-        self.ros_node.call_emergency_stop()
+    def _on_ros_error(self, message: str):
+        # 우선은 콘솔 로그만. 필요하면 topbar나 상태바에 표시하는 방식으로 확장 가능.
+        print(f"[ROS] {message}")
 
-    @pyqtSlot(bool, str)
-    def _on_estop_result(self, success: bool, message: str):
-        self.estop_button.setEnabled(True)
-        if not success:
-            QMessageBox.warning(self, '비상정지 실패', message)
-
-    def _on_trajectory_clicked(self, idx: int, target: str):
-        confirm = QMessageBox.question(
-            self, '재시험 시작 확인', f'{RETRY_TARGETS[idx][1]}을(를) 시작하시겠습니까?',
-            QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
-        if confirm != QMessageBox.Yes:
-            return
-        self.pending_retry_button = idx
-        self.trajectory_buttons[idx].setEnabled(False)
-        self.ros_node.call_start_retry(target)
-
-    @pyqtSlot(str, bool, str)
-    def _on_retry_result(self, target: str, accepted: bool, message: str):
-        idx = self.pending_retry_button
-        self.pending_retry_button = None
-        if idx is not None:
-            self.trajectory_buttons[idx].setEnabled(True)
-        if not accepted:
-            QMessageBox.warning(self, '재시험 시작 실패', message)
-            return
-        if idx is not None:
-            self.active_trajectory = idx
-            self._refresh_trajectory_highlight()
+    def closeEvent(self, event):
+        if self.ros_worker is not None:
+            self.ros_worker.stop()
+        super().closeEvent(event)
