@@ -291,7 +291,7 @@ class DrivingNode(Node):
         self.send_waypoint(self.waypoints[0])
 
     # ================= 구간 결과 보고 (공통 헬퍼) =================
-    def _publish_status(self, mode: str, result: str, reason: str = ''):
+    def _publish_status(self, mode: str, result: str, reason: str = ''):  # 이동 중일 때의 상태 표시는 결과를 기록할 필요 없이 발행 
         """/driving_status를 그대로 발행 (stage_results는 건드리지 않음).
         NAV_TO_END처럼 채점 대상이 아닌 '이동 중' 표시에도 재사용."""
         msg = DrivingStatus()
@@ -301,11 +301,11 @@ class DrivingNode(Node):
         msg.wp_index = self.wp_index
         obs = self.latest_observation
         msg.error_lateral = float(obs.x_m) if obs is not None else 0.0
-        msg.error_distance = float(obs.z_m - self.parking_stop_distance_m) if obs is not None else 0.0
+        msg.error_distance = float(obs.z_m - self.parking_stop_distance_m) if obs is not None else 0.0 #구간 별 성공여부 판단헤서 기록 후 발행
         msg.retry_count = self.parking_retry_count
-        self.status_pub.publish(msg)
+        self.status_pub.publish(msg) #/driving_status 발행
 
-    def _report_stage(self, stage: str, result: StageResult, reason: str = ''):
+    def _report_stage(self, stage: str, result: StageResult, reason: str = ''): 
         """구간 결과를 stage_results에 반영하고, 동시에 DrivingStatus로도 즉시 발행"""
         self.stage_results[stage] = result
         self._publish_status(stage, result.name, reason)
@@ -366,12 +366,12 @@ class DrivingNode(Node):
     def _announce_retry_result(self, target: str):
         """재시험 대상 구간 하나의 결과만 로그+토픽+TTS로 알림"""
         result = self.stage_results[target]
-        msg = DrivingStatus()
-        msg.mode = target
-        msg.result = result.name
-        msg.reason = ''
-        msg.wp_index = self.wp_index
-        self.status_pub.publish(msg)
+        self._publish_status(target, result.name, '')   # ← 직접 만들던 msg를 헬퍼 호출로 교체
+
+        # 위 메시지의 mode=target이 그대로 GUI '현재 모드' 카드에 남아
+        # "직각주차 중"처럼 재시험 종료 후에도 진행 중인 것처럼 보이는 문제가 있었음.
+        # target을 reason에 실어 "재시험 종료"임을 GUI가 표시하도록 별도 발행.
+        self._publish_status('RETRY_COMPLETE', '', target)
 
         self.get_logger().info(f'[RETRY RESULT] {target}: {result.name}')
 
@@ -584,8 +584,8 @@ class DrivingNode(Node):
             self.green_count = 0
 
         elapsed = (self.get_clock().now() - self.signal_wait_enter_time).nanoseconds / 1e9
-        if elapsed > 5.0:
-            reason = f'{elapsed:.1f}초간 재출발 실패 (제한 5초)'
+        if elapsed > 7.0:
+            reason = f'{elapsed:.1f}초간 재출발 실패 '
             self._report_stage('SIGNAL_WAIT', StageResult.FAIL, reason)
             self.get_logger().warn(f'[SIGNAL_WAIT] {reason}')
             self.notify_tts('신호대기 시간이 초과되었습니다.')
@@ -704,7 +704,7 @@ class DrivingNode(Node):
             return
 
         linear_x = msg.twist.twist.linear.x
-        self.get_logger().info(f'[ACCEL_ZONE] 현재 속도: {linear_x:.3f} m/s')   # ← 여기 추가
+        # self.get_logger().info(f'[ACCEL_ZONE] 현재 속도: {linear_x:.3f} m/s')   # ← 여기 추가
 
 
         if linear_x > self.accel_zone_max_speed:
@@ -717,8 +717,8 @@ class DrivingNode(Node):
                 self.accel_sustain_start = now   # 목표 속도 이상 시작된 순간 기록
             self.accel_last_below_time = None
 
-            sustained = (now - self.accel_sustain_start).nanoseconds / 1e9
-            if sustained >= self.ACCEL_SUSTAIN_SEC:
+            sustained = (now - self.accel_sustain_start).nanoseconds / 1e9 # 그 시작부터 지금까지 계속 목표 속도 이상을 유지 
+            if sustained >= self.ACCEL_SUSTAIN_SEC: 
                 if self.stage_results['ACCEL_ZONE'] == StageResult.IN_PROGRESS:
                     reason = (f'{sustained:.2f}초간 {self.ACCEL_TARGET_SPEED} m/s 이상 유지(허용오차 포함) '
                           f'(최고 {self.accel_zone_max_speed:.3f} m/s)')
@@ -963,14 +963,13 @@ class DrivingNode(Node):
         self.latest_observation = None
 
     def publish_parking_state(self) -> None:
+        # 이미 PASS/FAIL로 확정됐으면 재시도 검색 상태(SEARCH_MARKER 등)로 덮어쓰지 않음
+        if self.stage_results['PARKING'] != StageResult.IN_PROGRESS:
+            return
+
         msg = DrivingStatus()
         msg.mode = self.mode.name
-        if self.parking_state == ParkingState.DONE:
-            msg.result = 'PASS'
-        elif self.parking_state == ParkingState.FAILED:
-            msg.result = 'FAIL'
-        else:
-            msg.result = 'IN_PROGRESS'
+        msg.result = 'IN_PROGRESS'   # 여기 도달했다는 건 아직 진행중이라는 뜻
         msg.reason = self.parking_state.value
         msg.wp_index = self.wp_index
         obs = self.latest_observation
@@ -1118,11 +1117,19 @@ class DrivingNode(Node):
     def _announce_final_result(self):
         self.publish_final_result()
         overall_pass = all(r == StageResult.PASS for r in self.stage_results.values())
+
+        # publish_final_result()가 stage_results를 순서대로 재발행하기 때문에
+        # 마지막으로 발행되는 mode가 'PARKING'으로 남아 GUI에 '직각주차 중'이
+        # 그대로 표시되는 문제가 있었음. 완료를 알리는 상태를 별도로 발행한다.
+        self.mode = DrivingMode.RESULT_SUMMARY
+        self._publish_status('COMPLETE', 'PASS' if overall_pass else 'FAIL', '전체 코스 완료')
+
         if overall_pass:
             self.notify_tts('전체 코스를 완료했습니다. 모든 구간을 성공적으로 통과했습니다.')
         else:
             fail_stages = [name for name, r in self.stage_results.items() if r == StageResult.FAIL]
             self.notify_tts(f'전체 코스를 완료했습니다. {", ".join(fail_stages)} 구간에서 실패했습니다.')
+
 
     def destroy_node(self):
         for _ in range(5):

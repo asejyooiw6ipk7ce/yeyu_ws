@@ -18,6 +18,7 @@ STAGE_LABELS = {
     'SIGNAL_WAIT': '신호대기',
     'ACCEL_ZONE': '가속구간',
     'PARKING': '직각주차',
+    'COMPLETE': '주행완료',
 }
 MODE_LABELS = {
     'NAV_WAYPOINT': '경로 주행 중',
@@ -25,6 +26,7 @@ MODE_LABELS = {
     'ACCEL_ZONE': '가속구간 통과 중',
     'PARKING': '직각주차 중',
     'NAV_TO_END': '도착점으로 이동 중',
+    'COMPLETE': '주행완료',
 }
 RESULT_COLORS = {
     'PASS': QColor('#2e7d32'),
@@ -149,7 +151,7 @@ class MainWindow(QMainWindow):
         self.stage_table.setEditTriggers(QTableWidget.NoEditTriggers)
         for row, stage in enumerate(STAGE_ROWS):
             self.stage_table.setItem(row, 0, QTableWidgetItem(STAGE_LABELS[stage]))
-            self.stage_table.setItem(row, 1, QTableWidgetItem('대기'))
+            self.stage_table.setItem(row, 1, QTableWidgetItem('대기중'))
             self.stage_table.setItem(row, 2, QTableWidgetItem(''))
         stage_box.addWidget(self.stage_table)
         layout.addLayout(stage_box, stretch=1)
@@ -236,6 +238,18 @@ class MainWindow(QMainWindow):
         result = status['result']
         reason = status['reason']
 
+        if mode == 'RETRY_COMPLETE':
+            # reason에 재시험 대상 구간명이 실려 온다 (예: 'PARKING' -> '직각주차 재시험 종료')
+            target_label = STAGE_LABELS.get(reason, reason)
+            self.mode_value.setText(f'{target_label} 재시험 종료')
+            return
+
+        if mode == 'COMPLETE':
+            # 구간별 성공/실패와 무관하게, 도착 자체를 상단 카드와 이벤트 로그에 남김
+            self.mode_value.setText(MODE_LABELS.get('COMPLETE'))
+            self._append_event('COMPLETE', reason)
+            return
+
         self.mode_value.setText(MODE_LABELS.get(mode, mode or '--'))
 
         if mode in STAGE_ROWS:
@@ -249,7 +263,7 @@ class MainWindow(QMainWindow):
                 self.stage_table.item(row, 1).setForeground(color)
 
         if result == 'FAIL':
-            self._append_event(mode, reason)
+            self._append_event(mode, f'{reason} → 재시험을 권장합니다.')
 
         active_target = RETRY_TARGETS.get(self.active_trajectory, (None,))[0]
         if result in ('PASS', 'FAIL') and mode == active_target:
