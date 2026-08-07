@@ -20,9 +20,8 @@ from nav_msgs.msg import Odometry
 from action_msgs.msg import GoalStatus
 from sensor_msgs.msg import CompressedImage, CameraInfo
 from geometry_msgs.msg import Twist
-from std_msgs.msg import String
-# 여기추가 밑 한줄
-from std_msgs.msg import ColorRGBA
+
+from std_msgs.msg import String, ColorRGBA ,Float32 ,Bool
 from std_srvs.srv import Trigger
 from yeyu_msgs.msg import DrivingStatus, AudioCommand
 from yeyu_msgs.srv import StartRetry
@@ -98,6 +97,13 @@ class DrivingNode(Node):
         self.ACCEL_DIP_TOLERANCE_SEC = 0.15   # 이 시간 이내의 짧은 하락은 봐줌
         self.accel_last_below_time = None     # 마지막으로 기준 밑으로 떨어진 시각
         self.accel_sustain_start = None        # 목표 속도 이상이 시작된 시각 (끊기면 None으로 리셋)
+
+        # --- 장애물 감지 상태 ---
+        self.OBSTACLE_STOP_DISTANCE_CM = 20.0     # [추가] 이 거리 이하면 정지
+        self.is_handling_obstacle = False          # [추가] 회피 시퀀스 진행 중 여부 (중복 트리거 방지)
+        self.obstacle_saved_wp_index = None        # [추가] 회피 시작 시점의 목적지 인덱스 기억
+        self.obstacle_blink_count = 0              # [추가] 깜빡임 횟수 카운터
+        self.obstacle_blink_timer = None           # [추가] 깜빡임 타이머 핸들
 
         # --- 콜백 그룹 ---
         self.camera_cb_group = ReentrantCallbackGroup()
@@ -175,19 +181,20 @@ class DrivingNode(Node):
             depth=1,
         )
 
-        self.create_subscription(
-            CompressedImage, self.image_topic, self.on_camera, sensor_qos,
+        self.create_subscription(CompressedImage, self.image_topic, self.on_camera, sensor_qos,
             callback_group=self.camera_cb_group)
-        self.create_subscription(
-            CameraInfo, self.camera_info_topic, self.camera_info_callback, sensor_qos,
+        self.create_subscription(CameraInfo, self.camera_info_topic, self.camera_info_callback, sensor_qos,
             callback_group=self.camera_cb_group)
         self.create_subscription(Odometry, '/odom', self.on_odom, 10,
             callback_group=self.camera_cb_group)
+        self.create_subscription(Float32, 'sensor_bridge/obstacle_distance_cm', self.on_obstacle_distance, 10,
+            callback_group=self.camera_cb_group)   # [추가]
+
 
         self.param_client = self.create_client(SetParameters, '/controller_server/set_parameters')
-        # 여기 추가
-        #self.pub_led = self.create_publisher(String, '/led_command', 10)
+
         self.pub_led = self.create_publisher(ColorRGBA, 'sensor_bridge/rgb_cmd', 10)
+        self.pub_emergency_led = self.create_publisher(Bool, 'sensor_bridge/emergency_led_cmd', 10)   # [추가]
         self.cmd_pub = self.create_publisher(Twist, '/cmd_vel', 10)
         self.status_pub = self.create_publisher(DrivingStatus, '/driving_status', 10)
         self.image_pub = self.create_publisher(CompressedImage, '/camera/image_flipped/compressed', 10)
@@ -567,6 +574,8 @@ class DrivingNode(Node):
         elif self.mode == DrivingMode.PARKING:
             self._process_aruco(flipped, msg.header, image_width=flipped.shape[1], image_height=flipped.shape[0])
 
+    # ================= 신호등 =================
+
     def _process_signal(self, flipped):
         if self.stage_results['SIGNAL_WAIT'] == StageResult.FAIL:
             return
@@ -599,6 +608,8 @@ class DrivingNode(Node):
         self._report_stage('NAV_WAYPOINT', StageResult.IN_PROGRESS, '')
         self.send_waypoint(self.waypoints[2])
 
+    # ================= 과속 =================
+
     def _process_speed_sign(self, flipped):
         color = self.detect_speed_sign(flipped)
         if color == 'blue':
@@ -616,6 +627,42 @@ class DrivingNode(Node):
                 self.send_waypoint(self.waypoints[3])
         else:
             self.blue_count = 0
+
+    # ================= 장애물(초음파) 대응 =================
+    def on_obstacle_distance(self, msg: Float32):
+        """초음파 거리 수신 — 판단은 여기서만 한다 (브릿지는 순수 전달자)"""
+        if self.is_estopped or self.is_handling_obstacle:
+            return
+        if msg.data <= self.OBSTACLE_STOP_DISTANCE_CM:
+            self._start_obstacle_response()
+
+    def _start_obstacle_response(self):
+        self.is_handling_obstacle = True
+        self.obstacle_saved_wp_index = self.wp_index   # 지금 가던 목적지를 기억해둠
+
+        self.notify_tts('장애물이 감지되었습니다. 정지합니다.')
+        self.pause_nav()
+        self._publish_cmd(Twist())   # 확실히 멈추도록 정지 명령도 별도 발행
+
+        self.obstacle_blink_count = 0
+        self.obstacle_blink_timer = self.create_timer(0.5, self._obstacle_blink_step)
+
+    def _obstacle_blink_step(self):
+        led_on = (self.obstacle_blink_count % 2 == 0)
+        self.pub_emergency_led.publish(Bool(data=led_on))
+        self.obstacle_blink_count += 1
+
+        if self.obstacle_blink_count >= 10:   # on/off 합쳐 10번 토글 = 5번 깜빡임
+            self.obstacle_blink_timer.cancel()
+            self.pub_emergency_led.publish(Bool(data=False))
+            self._finish_obstacle_response()
+
+    def _finish_obstacle_response(self):
+        self.is_handling_obstacle = False
+        self.notify_tts('다시 출발합니다.')
+        self.resume_nav(self.waypoints[self.obstacle_saved_wp_index])
+
+    # ================= aruco 주차=================
 
     def _process_aruco(self, frame, header, image_width, image_height):
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -694,6 +741,7 @@ class DrivingNode(Node):
             self.camera_matrix = np.array(msg.k, dtype=np.float64).reshape(3, 3)
             self.dist_coeffs = np.array(msg.d, dtype=np.float64)
             self.get_logger().info('CameraInfo received. ArUco pose estimation enabled.')
+
 
     def on_odom(self, msg):
         if self.is_estopped:
