@@ -31,6 +31,7 @@ from yeyu_control.states.driving_mode import DrivingMode
 from yeyu_control.states.parking_state import ParkingState
 from yeyu_control.states.stage_result import StageResult
 from yeyu_control.states.linecourse_state import LineCourseState
+from yeyu_control.states.linecourse_state import SCourseState
 from ament_index_python.packages import get_package_share_directory
 from cv_bridge import CvBridge, CvBridgeError
 import cv2
@@ -67,7 +68,7 @@ class RunPhase(Enum):
 # 재시험 대상별 진입점(wp 인덱스)과, 그 wp로 이동할 때의 mode
 RETRY_ENTRY = {
     'CRANK': {'wp_index': 0, 'mode': DrivingMode.NAV_TO_START},          # wp1            # wp1 
-    'S_COURSE': {'wp_index': 3, 'mode': DrivingMode.NAV_TO_S},    # wp4
+    'S_COURSE': {'wp_index': 2, 'mode': DrivingMode.NAV_TO_S},    # wp3
     'SIGNAL_WAIT': {'wp_index': 5, 'mode': DrivingMode.NAV_TO_SIGNAL},   # wp6
     'ACCEL_ZONE':  {'wp_index': 6, 'mode': DrivingMode.NAV_TO_ACCEL},    # wp7
     'PARKING':     {'wp_index': 8, 'mode': DrivingMode.NAV_TO_PARKING},  # wp9
@@ -1279,6 +1280,12 @@ class DrivingNode(Node):
         self.crank_line_lost_since = None
         self.last_meaningful_ir = (0, 1, 0)
 
+    def _reset_s_course_state(self):
+        self.s_course_state = SCourseState.TRACKING
+        with self.s_course_lock:
+            self.s_line_offset = None
+            self.s_line_last_seen_time = self.get_clock().now() - Duration(seconds=999.0)
+
     def _handle_crank_following(self):
         ir = (self.ir_l, self.ir_c, self.ir_r)
 
@@ -1388,6 +1395,11 @@ class DrivingNode(Node):
         self._report_stage('CRANK', StageResult.PASS, '크랭크 코스 라인트레이싱 완료')
         self.notify_tts('크랭크 코스를 완료했습니다.')
         self._publish_cmd(Twist())
+
+        if self.run_phase == RunPhase.RETRY:
+            self._finish_retry()
+            return
+        
         self.wp_index = 2
         self.mode = DrivingMode.NAV_TO_S
         self.send_waypoint(self.waypoints[2])
@@ -1398,6 +1410,11 @@ class DrivingNode(Node):
         self.get_logger().warn(f'[CRANK] FAILED:{reason}')
         self.notify_tts('크랭크 코스에 실패했습니다. 다음 구간으로 이동합니다.')
         self._publish_cmd(Twist())
+
+        if self.run_phase == RunPhase.RETRY:
+            self._finish_retry()
+            return
+        
         self.wp_index = 2
         self.mode = DrivingMode.NAV_TO_S
         self.send_waypoint(self.waypoints[2])
@@ -1407,9 +1424,14 @@ class DrivingNode(Node):
         self._report_stage('S_COURSE', StageResult.PASS, 'S자 코스 라인트레이싱 완료')
         self.notify_tts('S자 코스를 완료했습니다.')
         self._publish_cmd(Twist())
-        self.wp_index = 3
+
+        if self.run_phase == RunPhase.RETRY:
+            self._finish_retry()
+            return
+        
+        self.wp_index = 4
         self.mode = DrivingMode.NAV_TO_MAZE
-        self.send_waypoint(self.waypoints[3])
+        self.send_waypoint(self.waypoints[4])
 
     def _on_s_course_failed(self, reason: str):
         self.s_course_state = SCourseState.FAILED
@@ -1417,9 +1439,14 @@ class DrivingNode(Node):
         self.get_logger().warn(f'[S_COURSE] FAILED: {reason}')
         self.notify_tts('S자 코스에 실패했습니다. 다음 구간으로 이동합니다.')
         self._publish_cmd(Twist())
-        self.wp_index = 3
+
+        if self.run_phase == RunPhase.RETRY:
+            self._finish_retry()
+            return
+        
+        self.wp_index = 4
         self.mode = DrivingMode.NAV_TO_MAZE
-        self.send_waypoint(self.waypoints[3])
+        self.send_waypoint(self.waypoints[4])
 
     # ================= LED 제어 =================
     def set_led(self, state_key):
