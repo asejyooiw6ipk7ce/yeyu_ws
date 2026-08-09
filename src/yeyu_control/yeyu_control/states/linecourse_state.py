@@ -5,3 +5,8 @@ class LineCourseState(Enum):
     TURNING = 'TURNING'
     DONE = 'DONE'
     FAILED = 'FAILED'
+
+class SCourseState(Enum):
+    TRACKING = 'TRACKING'   # 오프셋 기반 회전+직진 중
+    DONE = 'DONE'
+    FAILED = 'FAILED'

@@ -67,6 +67,7 @@ class RunPhase(Enum):
 # 재시험 대상별 진입점(wp 인덱스)과, 그 wp로 이동할 때의 mode
 RETRY_ENTRY = {
     'CRANK': {'wp_index': 0, 'mode': DrivingMode.NAV_TO_START},          # wp1            # wp1 
+    'S_COURSE': {'wp_index': 3, 'mode': DrivingMode.NAV_TO_S},    # wp4
     'SIGNAL_WAIT': {'wp_index': 5, 'mode': DrivingMode.NAV_TO_SIGNAL},   # wp6
     'ACCEL_ZONE':  {'wp_index': 6, 'mode': DrivingMode.NAV_TO_ACCEL},    # wp7
     'PARKING':     {'wp_index': 8, 'mode': DrivingMode.NAV_TO_PARKING},  # wp9
@@ -95,6 +96,7 @@ class DrivingNode(Node):
 
         self.data_lock = threading.Lock()   # mutex
         self.crank_lock = threading.Lock()
+        self.s_course_lock = threading.Lock()
 
         self.wp_index = 0
         self.green_count = 0
@@ -116,11 +118,13 @@ class DrivingNode(Node):
         self.parking_cb_group = ReentrantCallbackGroup()
         self.sensor_cb_group = ReentrantCallbackGroup() #odom,imu,ir_subs용 콜백 그룹
         self.crank_cb_group = ReentrantCallbackGroup()
+        self.s_course_cb_group = ReentrantCallbackGroup()
 
         # --- 구간별 성공/실패 결과 저장소 ---
         self.stage_results = {
             'NAV_WAYPOINT': StageResult.IN_PROGRESS,
             'CRANK': StageResult.IN_PROGRESS,        # 추가
+            'S_COURSE': StageResult.IN_PROGRESS,        # 추가
             'SIGNAL_WAIT': StageResult.IN_PROGRESS,
             'ACCEL_ZONE': StageResult.IN_PROGRESS,
             'PARKING': StageResult.IN_PROGRESS,
@@ -168,8 +172,10 @@ class DrivingNode(Node):
         self.camera_matrix: Optional[np.ndarray] = None
         self.dist_coeffs: Optional[np.ndarray] = None
 
-        self.latest_observation: Optional[ArucoObservation] = None
-        self.last_marker_time = self.get_clock().now() - Duration(seconds=999.0)
+        with self.data_lock:
+            self.latest_observation: Optional[ArucoObservation] = None
+        with self.data_lock:
+            self.last_marker_time = self.get_clock().now() - Duration(seconds=999.0)
         self.parking_state = ParkingState.SEARCH_MARKER
         self.parking_state_enter_time = self.get_clock().now()
         self.parking_start_time = self.get_clock().now()
@@ -190,11 +196,16 @@ class DrivingNode(Node):
         self.crank_turn_target_delta = 0.0
         self.crank_camera_line_visible = True
         self.current_yaw = 0.0
-        self.current_x = None
-        self.current_y = None
+        with self.data_lock:
+            self.current_x = None
+            self.current_y = None
         self.ir_l = 0
         self.ir_c = 0
         self.ir_r = 0
+
+        self.s_course_state = SCourseState.TRACKING
+        self.s_line_offset = None
+        self.s_line_last_seen_time = self.get_clock().now() - Duration(seconds=999.0)
 
         # --- 구독/발행 ---
         sensor_qos = QoSProfile(
@@ -234,6 +245,7 @@ class DrivingNode(Node):
         self.parking_timer = self.create_timer(timer_period, self.parking_control_loop,callback_group=self.parking_cb_group)
         self.crank_timer = self.create_timer(timer_period, self.crank_control_loop,callback_group=self.crank_cb_group)
         # timer_period마다 crandk_control_lopp(IR값->어떻게행동할지) 호출
+        self.s_course_timer = self.create_timer(timer_period, self.s_course_control_loop, callback_group=self.s_course_cb_group)
 
         # --- HSV 색상 범위 ---
         self.GREEN_LOWER = np.array([35, 40, 40])
@@ -322,6 +334,18 @@ class DrivingNode(Node):
         self.CRANK_ARRIVAL_TOLERANCE_M = 0.10
         self.CRANK_LINE_BLACK_THRESHOLD = 60
         self.CRANK_LINE_PIXEL_THRESHOLD = 150
+
+        # --- S자 코스 파라미터 (실측 후 조정) ---
+        self.S_ROI_TOP_RATIO = 0.85
+        self.S_LINE_BLACK_THRESHOLD = 60
+        self.S_LINE_PIXEL_MIN = 100
+        self.S_LINEAR_SPEED_MAX = 0.10
+        self.S_LINEAR_SPEED_MIN = 0.04
+        self.S_ANGULAR_GAIN = 0.9
+        self.S_ANGULAR_MAX = 0.6
+        self.S_OFFSET_DEADBAND = 0.05
+        self.S_LINE_LOST_TIMEOUT_SEC = 1.2
+        self.S_ARRIVAL_TOLERANCE_M = 0.10
 
     # ================= 시작 시퀀스 (LED 구독자 대기) =================
     def on_startup(self):
@@ -560,6 +584,10 @@ class DrivingNode(Node):
                 if self.mode == DrivingMode.SIGNAL_WAIT:
                     self.set_led('SIGNAL_WAIT')
                     self.signal_wait_enter_time = self.get_clock().now()
+                elif self.mode == DrivingMode.TRACKING_S:
+                    self.set_led('S_COURSE')
+                    self.notify_tts('S자 코스를 시작합니다.')
+                    self._reset_s_course_state()
                 elif self.mode == DrivingMode.ACCEL_ZONE:
                     self.set_led('ACCEL_ZONE')
                 elif self.mode == DrivingMode.PARKING:
@@ -634,6 +662,12 @@ class DrivingNode(Node):
             with self.crank_lock:
                 self.crank_camera_line_visible = self._detect_crank_line_visible(flipped)
                 # ? 왜 _process로 시작하지 않는가 : 감지-판정-행동을 crank_control_loop에서 하는거고 이건 라인 벗어남 참고자료 정도라서
+        elif self.mode == DrivingMode.TRACKING_S:
+            offset = self._detect_s_line_offset(flipped)
+            with self.s_course_lock:
+                self.s_line_offset = offset
+                if offset is not None:
+                    self.s_line_last_seen_time = self.get_clock().now()
 
     def _process_signal(self, flipped):
         if self.stage_results['SIGNAL_WAIT'] == StageResult.FAIL:
@@ -770,6 +804,23 @@ class DrivingNode(Node):
         mask = cv2.inRange(gray, 0, self.CRANK_LINE_BLACK_THRESHOLD)
         count = cv2.countNonZero(mask)
         return count > self.CRANK_LINE_PIXEL_THRESHOLD
+
+    def _detect_s_line_offset(self, cv_image) -> Optional[float]:
+        h, w = cv_image.shape[:2]
+        # 크랭크보다 얇은 밴드 추천 — S자는 곡선이라 ROI가 너무 크면 중심점이 왜곡됨
+        roi = cv_image[int(h * self.S_ROI_TOP_RATIO):h, :]
+        gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+        mask = cv2.inRange(gray, 0, self.S_LINE_BLACK_THRESHOLD)
+
+        if cv2.countNonZero(mask) < self.S_LINE_PIXEL_MIN:
+            return None
+
+        M = cv2.moments(mask)
+        if M['m00'] == 0:
+            return None
+
+        cx = M['m10'] / M['m00']
+        return (cx - w / 2.0) / (w / 2.0)
     
     def on_odom(self, msg):
         with self.data_lock:
@@ -1184,6 +1235,44 @@ class DrivingNode(Node):
         elif self.crank_state == LineCourseState.TURNING:
             self._handle_crank_turning()
 
+    def s_course_control_loop(self):
+        if self.is_estopped:
+            self._publish_cmd(Twist())
+            return
+        if self.mode != DrivingMode.TRACKING_S:
+            return
+        if self.s_course_state in (SCourseState.DONE, SCourseState.FAILED):
+            self._publish_cmd(Twist())
+            return
+
+        with self.s_course_lock:
+            offset = self.s_line_offset
+            last_seen = self.s_line_last_seen_time
+
+        if offset is None:
+            if self._elapsed(last_seen) > self.S_LINE_LOST_TIMEOUT_SEC:
+                self._on_s_course_failed('카메라에서 라인 미검출 지속')
+                return
+            # 그레이스 구간: 저속 직진 유지 (완전 정지 X — 순간 오검출 대비)
+            self.publish_cmd(self.S_LINEAR_SPEED_MIN, 0.0)
+            return
+
+        self._check_s_course_arrival()
+        if self.s_course_state == SCourseState.DONE:
+            return
+
+        # 데드밴드: 이미 거의 정렬됐으면 직진만
+        if abs(offset) < self.S_OFFSET_DEADBAND:
+            self.publish_cmd(self.S_LINEAR_SPEED_MAX, 0.0)
+            return
+
+        angular_z = self._clamp(-self.S_ANGULAR_GAIN * offset,
+                                -self.S_ANGULAR_MAX, self.S_ANGULAR_MAX)
+        # 오프셋 클수록 속도 줄이기 — "천천히 회전+직진"
+        linear_x = max(self.S_LINEAR_SPEED_MIN,
+                        self.S_LINEAR_SPEED_MAX * (1.0 - min(abs(offset), 1.0)))
+        self.publish_cmd(linear_x, angular_z)
+
     def _reset_crank_state(self):
         self.crank_state = LineCourseState.LINE_FOLLOWING
         self.crank_state_enter_time = self.get_clock().now()
@@ -1285,6 +1374,15 @@ class DrivingNode(Node):
         if dist <= self.CRANK_ARRIVAL_TOLERANCE_M:
             self._on_crank_done()
 
+    def _check_s_course_arrival(self):
+        with self.data_lock:
+            x, y = self.current_x, self.current_y
+        if x is None:
+            return
+        target = self.waypoints[3]   # S자 종료 지점 wp4
+        if math.hypot(x - float(target['x']), y - float(target['y'])) <= self.S_ARRIVAL_TOLERANCE_M:
+            self._on_s_course_done()
+
     def _on_crank_done(self):
         self.crank_state = LineCourseState.DONE
         self._report_stage('CRANK', StageResult.PASS, '크랭크 코스 라인트레이싱 완료')
@@ -1303,6 +1401,25 @@ class DrivingNode(Node):
         self.wp_index = 2
         self.mode = DrivingMode.NAV_TO_S
         self.send_waypoint(self.waypoints[2])
+
+    def _on_s_course_done(self):
+        self.s_course_state = SCourseState.DONE
+        self._report_stage('S_COURSE', StageResult.PASS, 'S자 코스 라인트레이싱 완료')
+        self.notify_tts('S자 코스를 완료했습니다.')
+        self._publish_cmd(Twist())
+        self.wp_index = 3
+        self.mode = DrivingMode.NAV_TO_MAZE
+        self.send_waypoint(self.waypoints[3])
+
+    def _on_s_course_failed(self, reason: str):
+        self.s_course_state = SCourseState.FAILED
+        self._report_stage('S_COURSE', StageResult.FAIL, reason)
+        self.get_logger().warn(f'[S_COURSE] FAILED: {reason}')
+        self.notify_tts('S자 코스에 실패했습니다. 다음 구간으로 이동합니다.')
+        self._publish_cmd(Twist())
+        self.wp_index = 3
+        self.mode = DrivingMode.NAV_TO_MAZE
+        self.send_waypoint(self.waypoints[3])
 
     # ================= LED 제어 =================
     def set_led(self, state_key):
