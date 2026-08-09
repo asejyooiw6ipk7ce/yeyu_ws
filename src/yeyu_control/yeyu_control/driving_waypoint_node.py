@@ -35,6 +35,7 @@ from ament_index_python.packages import get_package_share_directory
 from cv_bridge import CvBridge, CvBridgeError
 import cv2
 import numpy as np
+import threading
 
 
 # ================= wp 도착 시 자동 모드 전환 테이블 =================
@@ -92,6 +93,9 @@ class DrivingNode(Node):
     def __init__(self):
         super().__init__('driving_node')
 
+        self.data_lock = threading.Lock()   # mutex
+        self.crank_lock = threading.Lock()
+
         self.wp_index = 0
         self.green_count = 0
         self.blue_count = 0
@@ -110,6 +114,7 @@ class DrivingNode(Node):
         self.camera_cb_group = ReentrantCallbackGroup()
         self.nav_cb_group = ReentrantCallbackGroup()
         self.parking_cb_group = ReentrantCallbackGroup()
+        self.sensor_cb_group = ReentrantCallbackGroup() #odom,imu,ir_subs용 콜백 그룹
         self.crank_cb_group = ReentrantCallbackGroup()
 
         # --- 구간별 성공/실패 결과 저장소 ---
@@ -206,15 +211,15 @@ class DrivingNode(Node):
             CameraInfo, self.camera_info_topic, self.camera_info_callback, sensor_qos,
             callback_group=self.camera_cb_group)
         self.create_subscription(Odometry, '/odom', self.on_odom, 10,
-            callback_group=self.camera_cb_group)
+            callback_group=self.sensor_cb_group)
         self.create_subscription(Imu, '/imu', self.on_imu, 10,
-            callback_group=self.camera_cb_group)
+            callback_group=self.sensor_cb_group)
         self.create_subscription(Bool, 'sensor_bridge/ir_l_state', self.on_ir_l, 10,
-            callback_group=self.camera_cb_group)
+            callback_group=self.sensor_cb_group)
         self.create_subscription(Bool, 'sensor_bridge/ir_c_state', self.on_ir_c, 10,
-            callback_group=self.camera_cb_group)
+            callback_group=self.sensor_cb_group)
         self.create_subscription(Bool, 'sensor_bridge/ir_r_state', self.on_ir_r, 10,
-            callback_group=self.camera_cb_group)
+            callback_group=self.sensor_cb_group)
 
 
         self.param_client = self.create_client(SetParameters, '/controller_server/set_parameters')
@@ -226,7 +231,7 @@ class DrivingNode(Node):
         self.audio_pub = self.create_publisher(AudioCommand, '/audio/command', 10)
 
         timer_period = 1.0 / max(self.control_rate_hz, 0.5)
-        self.control_timer = self.create_timer(timer_period, self.parking_control_loop,callback_group=self.parking_cb_group)
+        self.parking_timer = self.create_timer(timer_period, self.parking_control_loop,callback_group=self.parking_cb_group)
         self.crank_timer = self.create_timer(timer_period, self.crank_control_loop,callback_group=self.crank_cb_group)
         # timer_period마다 crandk_control_lopp(IR값->어떻게행동할지) 호출
 
@@ -342,7 +347,8 @@ class DrivingNode(Node):
         msg.result = result.name
         msg.reason = reason
         msg.wp_index = self.wp_index
-        obs = self.latest_observation
+        with self.data_lock:
+            obs = self.latest_observation
         msg.error_lateral = float(obs.x_m) if obs is not None else 0.0
         msg.error_distance = float(obs.z_m - self.parking_stop_distance_m) if obs is not None else 0.0
         msg.retry_count = self.parking_retry_count
@@ -625,8 +631,9 @@ class DrivingNode(Node):
         elif self.mode == DrivingMode.PARKING:
             self._process_aruco(flipped, msg.header, image_width=flipped.shape[1], image_height=flipped.shape[0])
         elif self.mode == DrivingMode.TRACKING_CRANK:                              # 추가
-            self.crank_camera_line_visible = self._detect_crank_line_visible(flipped)
-            # ? 왜 _process로 시작하지 않는가 : 감지-판정-행동을 crank_control_loop에서 하는거고 이건 라인 벗어남 참고자료 정도라서
+            with self.crank_lock:
+                self.crank_camera_line_visible = self._detect_crank_line_visible(flipped)
+                # ? 왜 _process로 시작하지 않는가 : 감지-판정-행동을 crank_control_loop에서 하는거고 이건 라인 벗어남 참고자료 정도라서
 
     def _process_signal(self, flipped):
         if self.stage_results['SIGNAL_WAIT'] == StageResult.FAIL:
@@ -694,8 +701,9 @@ class DrivingNode(Node):
                 observation = self._make_observation(
                     ids_flat, corners, selected_index, image_width, image_height)
                 if observation is not None:
-                    self.latest_observation = observation
-                    self.last_marker_time = self.get_clock().now()
+                    with self.data_lock: # mutex
+                        self.latest_observation = observation
+                        self.last_marker_time = self.get_clock().now()
 
             if self.enable_debug_image:
                 debug_frame = self._draw_debug_image(frame, corners, ids, observation, selected_index)
@@ -764,9 +772,10 @@ class DrivingNode(Node):
         return count > self.CRANK_LINE_PIXEL_THRESHOLD
     
     def on_odom(self, msg):
-        # 라인트레이싱할 때 현재 위치 기록용
-        self.current_x = msg.pose.pose.position.x   # 추가
-        self.current_y = msg.pose.pose.position.y   # 추가
+        with self.data_lock:
+            # 라인트레이싱할 때 현재 위치 기록용
+            self.current_x = msg.pose.pose.position.x   # 추가
+            self.current_y = msg.pose.pose.position.y   # 추가
 
         if self.is_estopped:
             return
@@ -887,11 +896,16 @@ class DrivingNode(Node):
             self._handle_parking_recovery()
 
     def _get_tracking_observation(self, lost_reason: str) -> Optional[ArucoObservation]:
-        if self.latest_observation is None:
+        # latest_observation을 읽는 곳 여기도 data_lock로 보호
+        with self.data_lock:
+            obs = self.latest_observation
+            marker_time = self.last_marker_time
+
+        if obs is None:
             self._publish_cmd(Twist())
             self._start_parking_recovery(lost_reason)
             return None
-        age = self._elapsed(self.last_marker_time)
+        age = self._elapsed(marker_time)
         if age > self.marker_lost_timeout_sec:
             self._publish_cmd(Twist())
             self._start_parking_recovery(lost_reason)
@@ -900,7 +914,7 @@ class DrivingNode(Node):
             self._publish_cmd(Twist())
             self._throttled_info(f'waiting for marker reacquisition, age={age:.2f}s')
             return None
-        return self.latest_observation
+        return obs
 
     def _handle_parking_search(self):
         obs = self.get_valid_observation()
@@ -1019,18 +1033,22 @@ class DrivingNode(Node):
         self.get_logger().info(f'PARKING STATE: {old.value} -> {new_state.value}. reason={reason}')
 
     def get_valid_observation(self) -> Optional[ArucoObservation]:
-        if self.latest_observation is None:
+        with self.data_lock:
+            obs = self.latest_observation
+            marker_time = self.last_marker_time
+        if obs is None:
             return None
-        if self._elapsed(self.last_marker_time) > self.marker_lost_timeout_sec:
+        if self._elapsed(marker_time) > self.marker_lost_timeout_sec:
             return None
-        return self.latest_observation
+        return obs
 
     def _reset_parking_state(self):
         self.parking_state = ParkingState.SEARCH_MARKER
         self.parking_state_enter_time = self.get_clock().now()
         self.parking_start_time = self.get_clock().now()
         self.parking_retry_count = 0
-        self.latest_observation = None
+        with self.data_lock:
+            self.latest_observation = None
 
     def publish_parking_state(self) -> None:
         msg = DrivingStatus()
@@ -1043,7 +1061,8 @@ class DrivingNode(Node):
             msg.result = 'IN_PROGRESS'
         msg.reason = self.parking_state.value
         msg.wp_index = self.wp_index
-        obs = self.latest_observation
+        with self.data_lock:
+            obs = self.latest_observation
         msg.error_lateral = float(obs.x_m) if obs is not None else 0.0
         msg.error_distance = float(obs.z_m - self.parking_stop_distance_m) if obs is not None else 0.0
         msg.retry_count = self.parking_retry_count
@@ -1212,7 +1231,9 @@ class DrivingNode(Node):
         if elapsed < self.CRANK_LINE_GRACE_SEC:
             return   # 그레이스 피리어드: 직전 명령 유지, 새 명령 안 보냄
 
-        if self.crank_camera_line_visible:
+        with self.crank_lock:
+            camera_visible = self.crank_camera_line_visible
+        if camera_visible:
             # 카메라는 아직 라인 봄 → 순간 이탈, 방향기억 기반 복귀
             if self.last_meaningful_ir == (1, 0, 0):
                 self.publish_cmd(self.CRANK_RECOVERY_SPEED, -self.CRANK_STEER_ANGULAR)
@@ -1253,11 +1274,14 @@ class DrivingNode(Node):
         self.publish_cmd(0.0, direction * self.CRANK_TURN_ANGULAR_SPEED)
 
     def _check_crank_arrival(self):
-        if self.current_x is None:
+        with self.data_lock:
+            x, y = self.current_x, self.current_y        
+
+        if x is None:
             return
         target = self.waypoints[1]   # wp2, 크랭크 종료 지점
-        dist = math.hypot(self.current_x - float(target['x']),
-                        self.current_y - float(target['y']))
+        dist = math.hypot(x - float(target['x']),
+                        y - float(target['y']))
         if dist <= self.CRANK_ARRIVAL_TOLERANCE_M:
             self._on_crank_done()
 
