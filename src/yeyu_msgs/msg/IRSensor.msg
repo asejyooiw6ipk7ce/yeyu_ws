@@ -1,3 +1,3 @@
-std_msgs/Bool ir_sensor_l
-std_msgs/Bool ir_sensor_c
-std_msgs/Bool ir_sensor_r
+bool ir_sensor_l
+bool ir_sensor_c
+bool ir_sensor_r
