@@ -67,7 +67,7 @@ class MainWindow(QMainWindow):
 
         root.addLayout(self._build_top_bar())
         root.addLayout(self._build_cards())
-        root.addWidget(self._build_camera())
+        root.addLayout(self._build_camera())
         root.addLayout(self._build_middle_row(), stretch=1)
         root.addLayout(self._build_bottom_bar())
 
@@ -124,19 +124,32 @@ class MainWindow(QMainWindow):
         layout.addWidget(card, 0, 2)
         card, self.obstacle_value = self._make_card('장애물 최소거리')
         layout.addWidget(card, 0, 3)
-        card, self.waypoint_value = self._make_card('현재 웨이포인트')
-        layout.addWidget(card, 0, 4)
+        # card, self.waypoint_value = self._make_card('현재 웨이포인트')
+        # layout.addWidget(card, 0, 4)
         return layout
 
     # ================= 카메라 =================
     def _build_camera(self):
+        layout = QHBoxLayout() 
         self.camera_label = QLabel('카메라 영상 대기 중...')
         self.camera_label.setAlignment(Qt.AlignCenter)
         self.camera_label.setFixedHeight(300)
         self.camera_label.setStyleSheet(
             'background-color: #202020; color: #aaa; border-radius: 8px;')
         self.camera_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        return self.camera_label
+        layout.addWidget(self.camera_label)
+
+        self.debug_camera_label = QLabel('주차 디버그 영상 대기 중...')   # [추가]
+        self.debug_camera_label.setAlignment(Qt.AlignCenter)              # [추가]
+        self.debug_camera_label.setFixedHeight(300)                        # [추가]
+        self.debug_camera_label.setStyleSheet(                             # [추가]
+            'background-color: #202020; color: #aaa; border-radius: 8px;')  # [추가]
+        self.debug_camera_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)  # [추가]
+        layout.addWidget(self.debug_camera_label)   # [추가]
+
+        return layout   # [변경] 위젯이 아니라 레이아웃을 반환
+
+
 
     # ================= 구간 진행상황 + 이상 이벤트 =================
     def _build_middle_row(self):
@@ -219,6 +232,7 @@ class MainWindow(QMainWindow):
         sig.battery.connect(self._on_battery)
         sig.obstacle.connect(self._on_obstacle)
         sig.image.connect(self._on_image)
+        sig.debug_image.connect(self._on_debug_image)
         sig.estop_result.connect(self._on_estop_result)
         sig.retry_result.connect(self._on_retry_result)
 
@@ -307,6 +321,13 @@ class MainWindow(QMainWindow):
             self.camera_label.width(), self.camera_label.height(),
             Qt.KeepAspectRatio, Qt.SmoothTransformation)
         self.camera_label.setPixmap(pixmap)
+
+    @pyqtSlot(QImage)                        # [추가]
+    def _on_debug_image(self, image: QImage):   # [추가]
+        pixmap = QPixmap.fromImage(image).scaled(   # [추가]
+            self.debug_camera_label.width(), self.debug_camera_label.height(),   # [추가]
+            Qt.KeepAspectRatio, Qt.SmoothTransformation)   # [추가]
+        self.debug_camera_label.setPixmap(pixmap)   # [추가]   
 
     # ================= 버튼 동작 =================
     def _on_estop_clicked(self):

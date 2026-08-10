@@ -31,6 +31,7 @@ class RosSignals(QObject):
     battery = pyqtSignal(float, float, int)
     obstacle = pyqtSignal(float)
     image = pyqtSignal(QImage)
+    debug_image = pyqtSignal(QImage) 
     ros_connected = pyqtSignal(bool)
     estop_result = pyqtSignal(bool, str)
     retry_result = pyqtSignal(str, bool, str)
@@ -58,6 +59,8 @@ class DashboardRosNode(Node):
         self.create_subscription(LaserScan, '/scan', self.on_scan, sensor_qos)
         self.create_subscription(
             CompressedImage, '/camera/image_flipped/compressed', self.on_image, sensor_qos)
+        self.create_subscription(                                                          # [추가]
+            CompressedImage, '/parking_debug_image/compressed', self.on_debug_image, sensor_qos)  # [추가]
 
         self.estop_client = self.create_client(Trigger, '/emergency_stop')
         self.retry_client = self.create_client(StartRetry, '/start_retry')
@@ -106,6 +109,22 @@ class DashboardRosNode(Node):
         h, w, ch = rgb.shape
         qimage = QImage(rgb.data, w, h, ch * w, QImage.Format_RGB888).copy()
         self.signals.image.emit(qimage)
+
+    def on_debug_image(self, msg: CompressedImage):
+        if not msg.data:
+            return
+        try:
+            cv_image = self.bridge.compressed_imgmsg_to_cv2(msg, desired_encoding='bgr8')
+        except (CvBridgeError, cv2.error)as e:
+            self.get_logger().warn(f'debug image decode 실패: {e}')
+            return
+        rgb =cv2.cvtColor (cv_image, cv2.COLOR_BGR2RGB)
+        rgb = np.ascontiguousarray(rgb)
+        h, w, ch = rgb.shape
+        qimage = QImage(rgb.data, w, h, ch * w, QImage.Format_RGB888).copy()
+        self.signals.image.emit(qimage)
+
+
 
     # ================= 서비스 호출 =================
     def call_emergency_stop(self):
