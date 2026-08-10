@@ -281,8 +281,9 @@ class DrivingNode(Node):
         self._start_check_timer = self.create_timer(0.3, self._try_start)
 
     def _try_start(self):
-        if self.pub_led.get_subscription_count() == 0 & self.audio_pub.get_subscription_count()==0:
-            # self.get_logger().warn('[LED] 구독자, [audio]구독자 대기 중...')
+        # == & ==가 같이 있으면 (a==b)&(c==d)가 아니라 a==(b&c)==가 됨 => &대신 and로 바꿈
+        if self.pub_led.get_subscription_count() == 0 and self.audio_pub.get_subscription_count()==0:
+            self.get_logger().warn('[LED] 구독자, [audio]구독자 대기 중...')
             return
         self._start_check_timer.cancel()
         self.set_led('START')
