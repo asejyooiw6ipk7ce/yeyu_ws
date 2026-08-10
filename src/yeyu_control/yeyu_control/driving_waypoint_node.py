@@ -142,7 +142,7 @@ class DrivingNode(Node):
         wp_path = os.path.join(
             get_package_share_directory('yeyu_waypoint_nav'),
             'waypoints',
-            'waypoint2.yaml'
+            'waypoint4.yaml'
         )
         with open(wp_path) as f:
             self.waypoints = yaml.safe_load(f)['waypoints']
@@ -173,10 +173,8 @@ class DrivingNode(Node):
         self.camera_matrix: Optional[np.ndarray] = None
         self.dist_coeffs: Optional[np.ndarray] = None
 
-        with self.data_lock:
-            self.latest_observation: Optional[ArucoObservation] = None
-        with self.data_lock:
-            self.last_marker_time = self.get_clock().now() - Duration(seconds=999.0)
+        self.latest_observation: Optional[ArucoObservation] = None
+        self.last_marker_time = self.get_clock().now() - Duration(seconds=999.0)
         self.parking_state = ParkingState.SEARCH_MARKER
         self.parking_state_enter_time = self.get_clock().now()
         self.parking_start_time = self.get_clock().now()
@@ -1224,29 +1222,30 @@ class DrivingNode(Node):
         if self.is_estopped:
             self._publish_cmd(Twist())
             return
-        if self.mode != DrivingMode.TRACKING_CRANK:
-            return
-        if self.crank_state in (LineCourseState.DONE, LineCourseState.FAILED):
-            self._publish_cmd(Twist())
-            return
+        with self.crank_lock:
+            if self.mode != DrivingMode.TRACKING_CRANK:
+                return
+            if self.crank_state in (LineCourseState.DONE, LineCourseState.FAILED):
+                self._publish_cmd(Twist())
+                return
 
-        if self.crank_state == LineCourseState.LINE_FOLLOWING:
-            self._handle_crank_following()
-            self._check_crank_arrival()
-        elif self.crank_state == LineCourseState.TURNING:
-            self._handle_crank_turning()
+            if self.crank_state == LineCourseState.LINE_FOLLOWING:
+                self._handle_crank_following()
+                self._check_crank_arrival()
+            elif self.crank_state == LineCourseState.TURNING:
+                self._handle_crank_turning()
 
     def s_course_control_loop(self):
         if self.is_estopped:
             self._publish_cmd(Twist())
             return
-        if self.mode != DrivingMode.TRACKING_S:
-            return
-        if self.s_course_state in (SCourseState.DONE, SCourseState.FAILED):
-            self._publish_cmd(Twist())
-            return
-
         with self.s_course_lock:
+            if self.mode != DrivingMode.TRACKING_S:
+                return
+            if self.s_course_state in (SCourseState.DONE, SCourseState.FAILED):
+                self._publish_cmd(Twist())
+                return
+
             offset = self.s_line_offset
             last_seen = self.s_line_last_seen_time
 
@@ -1275,14 +1274,15 @@ class DrivingNode(Node):
         self.publish_cmd(linear_x, angular_z)
 
     def _reset_crank_state(self):
-        self.crank_state = LineCourseState.LINE_FOLLOWING
-        self.crank_state_enter_time = self.get_clock().now()
-        self.crank_line_lost_since = None
-        self.last_meaningful_ir = (0, 1, 0)
+        with self.crank_lock:
+            self.crank_state = LineCourseState.LINE_FOLLOWING
+            self.crank_state_enter_time = self.get_clock().now()
+            self.crank_line_lost_since = None
+            self.last_meaningful_ir = (0, 1, 0)
 
     def _reset_s_course_state(self):
-        self.s_course_state = SCourseState.TRACKING
         with self.s_course_lock:
+            self.s_course_state = SCourseState.TRACKING
             self.s_line_offset = None
             self.s_line_last_seen_time = self.get_clock().now() - Duration(seconds=999.0)
 
