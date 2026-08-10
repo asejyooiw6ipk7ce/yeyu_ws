@@ -10,14 +10,15 @@ from PyQt5.QtWidgets import (
 
 from yeyu_gui.ros_bridge import DashboardRosNode, NO_OBSTACLE_READING
 
-TOTAL_WAYPOINTS = 7   # driving_waypoint_node.py의 wp1~wp7 코스 길이
+TOTAL_WAYPOINTS =11   # driving_waypoint_node.py의 wp1~wp7 코스 길이
 
-STAGE_ROWS = ['NAV_WAYPOINT', 'SIGNAL_WAIT', 'ACCEL_ZONE', 'PARKING']
+STAGE_ROWS = ['NAV_WAYPOINT', 'SIGNAL_WAIT', 'ACCEL_ZONE', 'PARKING', 'OBSTACLE']
 STAGE_LABELS = {
     'NAV_WAYPOINT': '경로 주행',
     'SIGNAL_WAIT': '신호대기',
     'ACCEL_ZONE': '가속구간',
     'PARKING': '직각주차',
+    'OBSTACLE': '장애물 감지',
     'COMPLETE': '주행완료',
 }
 MODE_LABELS = {
@@ -57,6 +58,7 @@ class MainWindow(QMainWindow):
         self.ros_node = ros_node
         self.active_trajectory = 1
         self.pending_retry_button = None
+        self._last_event_key = None
 
         self.setWindowTitle('주행 대시보드')
         self.resize(1100, 780)
@@ -124,8 +126,8 @@ class MainWindow(QMainWindow):
         layout.addWidget(card, 0, 2)
         card, self.obstacle_value = self._make_card('장애물 최소거리')
         layout.addWidget(card, 0, 3)
-        # card, self.waypoint_value = self._make_card('현재 웨이포인트')
-        # layout.addWidget(card, 0, 4)
+        card, self.waypoint_value = self._make_card('현재 웨이포인트')
+        layout.addWidget(card, 0, 4)
         return layout
 
     # ================= 카메라 =================
@@ -287,11 +289,16 @@ class MainWindow(QMainWindow):
             self._refresh_trajectory_highlight()
 
     def _append_event(self, mode: str, reason: str):
-        row = 0
-        self.event_table.insertRow(row)
-        self.event_table.setItem(row, 0, QTableWidgetItem(datetime.now().strftime('%H:%M:%S')))
-        self.event_table.setItem(row, 1, QTableWidgetItem(STAGE_LABELS.get(mode, mode)))
-        self.event_table.setItem(row, 2, QTableWidgetItem(reason))
+            event_key = (mode, reason)
+            if event_key == self._last_event_key:
+                return
+            self._last_event_key = event_key
+
+            row = 0
+            self.event_table.insertRow(row)
+            self.event_table.setItem(row, 0, QTableWidgetItem(datetime.now().strftime('%H:%M:%S')))
+            self.event_table.setItem(row, 1, QTableWidgetItem(STAGE_LABELS.get(mode, mode)))
+            self.event_table.setItem(row, 2, QTableWidgetItem(reason))
 
     @pyqtSlot(float, float)
     def _on_odom(self, x: float, y: float):
@@ -312,7 +319,7 @@ class MainWindow(QMainWindow):
             self.obstacle_value.setStyleSheet('font-size: 18px; font-weight: bold;')
             return
         self.obstacle_value.setText(f'{min_range:.2f} m')
-        color = '#c62828' if min_range < 0.3 else '#212121'
+        color = '#c62828' if min_range < 0.05 else '#212121'
         self.obstacle_value.setStyleSheet(f'font-size: 18px; font-weight: bold; color: {color};')
 
     @pyqtSlot(QImage)

@@ -10,6 +10,7 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPo
 
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import BatteryState, LaserScan, CompressedImage
+from std_msgs.msg import Float32 
 from std_srvs.srv import Trigger
 from yeyu_msgs.msg import DrivingStatus
 from yeyu_msgs.srv import StartRetry
@@ -56,7 +57,9 @@ class DashboardRosNode(Node):
         self.create_subscription(DrivingStatus, '/driving_status', self.on_driving_status, 10)
         self.create_subscription(Odometry, '/odom', self.on_odom, 10)
         self.create_subscription(BatteryState, '/battery_state', self.on_battery, sensor_qos)
-        self.create_subscription(LaserScan, '/scan', self.on_scan, sensor_qos)
+        # self.create_subscription(LaserScan, '/scan', self.on_scan, sensor_qos)
+        self.create_subscription(
+            Float32, 'sensor_bridge/obstacle_distance_cm', self.on_obstacle_distance, sensor_qos)   # [추가]
         self.create_subscription(
             CompressedImage, '/camera/image_flipped/compressed', self.on_image, sensor_qos)
         self.create_subscription(                                                          # [추가]
@@ -91,10 +94,17 @@ class DashboardRosNode(Node):
         percentage = msg.percentage if math.isfinite(msg.percentage) else -1.0
         self.signals.battery.emit(msg.voltage, percentage, msg.power_supply_status)
 
-    def on_scan(self, msg: LaserScan):
-        valid = [r for r in msg.ranges if math.isfinite(r) and msg.range_min <= r <= msg.range_max]
-        min_range = min(valid) if valid else NO_OBSTACLE_READING
-        self.signals.obstacle.emit(min_range)
+    # def on_scan(self, msg: LaserScan):
+    #     valid = [r for r in msg.ranges if math.isfinite(r) and msg.range_min <= r <= msg.range_max]
+    #     min_range = min(valid) if valid else NO_OBSTACLE_READING
+        # self.signals.obstacle.emit(min_range)
+
+    def on_obstacle_distance(self, msg: Float32):   # [추가] on_scan을 대체
+        distance_m = msg.data / 100.0   # cm → m 변환 (기존 signals.obstacle가 m 단위를 쓰고 있어서 통일)
+        if msg.data >= 255.0:   # 아두이노 펌웨어에서 255는 "응답없음/범위밖" 약속값
+            self.signals.obstacle.emit(NO_OBSTACLE_READING)
+            return
+        self.signals.obstacle.emit(distance_m)
 
     def on_image(self, msg: CompressedImage):
         if not msg.data:
@@ -122,7 +132,7 @@ class DashboardRosNode(Node):
         rgb = np.ascontiguousarray(rgb)
         h, w, ch = rgb.shape
         qimage = QImage(rgb.data, w, h, ch * w, QImage.Format_RGB888).copy()
-        self.signals.image.emit(qimage)
+        self.signals.debug_image.emit(qimage)
 
 
 
