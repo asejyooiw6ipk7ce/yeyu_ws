@@ -521,7 +521,7 @@ class DrivingNode(Node):
         with self._nav_result_lock:
             self._nav_result_pending = status
 
-    def _nav_result_timer_callback(self):
+    def _nav_result_loop(self):
         # ? 비상정지 상태면 대기 중이던 nav 결과를 그냥 버림(뒤늦게 도착한 nav가 mode를 바꾸거나 send_waypoint 호출하는거 방지)
         if self.is_estopped:
             with self._nav_result_lock:
