@@ -92,13 +92,18 @@ class DrivingNode(Node):
         self.accel_zone_max_speed = 0.0
         self.ACCEL_TARGET_SPEED = 0.18
 
+        self.DEFAULT_LOCAL_INFLATION_RADIUS = 0.15    # [수정] YAML 실제값과 일치
+        self.DEFAULT_GLOBAL_INFLATION_RADIUS = 0.15   # [수정] YAML 실제값과 일치
+        self.ACCEL_LOCAL_INFLATION_RADIUS = 0.3      # [수정] 가속구간에서 좁힐 값 (예시, 실제 코스에 맞게 조정)
+        self.ACCEL_GLOBAL_INFLATION_RADIUS = 0.3     # [수정] 마찬가지
+
         self.ACCEL_SUSTAIN_SEC = 0.5
         self.ACCEL_DIP_TOLERANCE_SEC = 0.15
         self.accel_last_below_time = None
         self.accel_sustain_start = None
 
         # --- 장애물 감지 상태 ---
-        self.OBSTACLE_STOP_DISTANCE_CM = 20.0
+        self.OBSTACLE_STOP_DISTANCE_CM = 5.0
         self.is_handling_obstacle = False
         self.obstacle_saved_wp_index = None
         self.obstacle_blink_count = 0
@@ -107,6 +112,10 @@ class DrivingNode(Node):
         # ================= [추가] 카메라 프레임 핸드오프 =================
         self._latest_frame = None            # [추가] (flipped, header, width, height)
         self._frame_lock = threading.Lock()  # [추가]
+        self._nav_result_pending = None
+        self._nav_result_lock = threading.Lock()
+
+
 
         # --- 구간별 성공/실패 결과 저장소 ---
         self.stage_results = {
@@ -127,7 +136,7 @@ class DrivingNode(Node):
         wp_path = os.path.join(
             get_package_share_directory('yeyu_waypoint_nav'),
             'waypoints',
-            'waypoint2.yaml'
+            'waypoint4.yaml'
         )
         with open(wp_path) as f:
             self.waypoints = yaml.safe_load(f)['waypoints']
@@ -184,6 +193,8 @@ class DrivingNode(Node):
             Float32, 'sensor_bridge/obstacle_distance_cm', self.on_obstacle_distance, 10)   # [변경]
 
         self.param_client = self.create_client(SetParameters, '/controller_server/set_parameters')
+        self.local_costmap_param_client = self.create_client(SetParameters, '/local_costmap/local_costmap/set_parameters')
+        self.global_costmap_param_client = self.create_client(SetParameters, '/global_costmap/global_costmap/set_parameters')
 
         self.pub_led = self.create_publisher(ColorRGBA, 'sensor_bridge/rgb_cmd', 10)
         self.pub_emergency_led = self.create_publisher(Bool, 'sensor_bridge/emergency_led_cmd', 10)
@@ -196,7 +207,9 @@ class DrivingNode(Node):
         timer_period = 1.0 / max(self.control_rate_hz, 0.5)
         self.control_timer = self.create_timer(timer_period, self.parking_control_loop)   # [변경]
 
-        self.vision_timer = self.create_timer(0.05, self._vision_timer_callback)   # [추가] 20Hz
+        self.vision_timer = self.create_timer(0.1, self._vision_timer_callback)   # [추가] 10Hz
+
+        self.nav_result_timer = self.create_timer(0.05, self._nav_result_timer_callback)   # [추가] 20Hz
 
         # --- HSV 색상 범위 ---
         self.GREEN_LOWER = np.array([35, 40, 40])
@@ -209,6 +222,8 @@ class DrivingNode(Node):
         # --- 초기 상태: 첫 웨이포인트로 출발 ---
         self.mode = DrivingMode.NAV_TO_START
         self.set_speed(0.13)
+        self.set_inflation_radius_pair(   # [추가]
+            self.DEFAULT_LOCAL_INFLATION_RADIUS, self.DEFAULT_GLOBAL_INFLATION_RADIUS)   # [추가]
         self.startup_timer = self.create_timer(0.5, self.on_startup)
 
     # ================= 파라미터 =================
@@ -432,6 +447,23 @@ class DrivingNode(Node):
         status = result.status
         self.get_logger().info(f'[on_nav_result] status={status}')
 
+        with self._nav_result_lock:
+            self._nav_result_pending = status
+
+
+    def _nav_result_timer_callback(self):
+        if self.is_estopped:
+            with self._nav_result_lock:
+                self._nav_result_pending = None
+            return
+        
+        with self._nav_result_lock:
+            if self._nav_result_pending is None:
+                return
+        
+            status = self._nav_result_pending
+            self._nav_result_pending = None
+
         if status == GoalStatus.STATUS_SUCCEEDED:
             self.nav_fail_count = 0
 
@@ -453,6 +485,8 @@ class DrivingNode(Node):
                 self.wp_index = 8
                 self.mode = DrivingMode.NAV_TO_PARKING
                 self.set_speed(0.13)
+                self.set_inflation_radius_pair(
+                    self.DEFAULT_LOCAL_INFLATION_RADIUS, self.DEFAULT_GLOBAL_INFLATION_RADIUS)
                 if self.stage_results['ACCEL_ZONE'] == StageResult.IN_PROGRESS:
                     reason = f'{self.ACCEL_SUSTAIN_SEC}초 연속 유지 실패 (최고 {self.accel_zone_max_speed:.3f} m/s)'
                     self._report_stage('ACCEL_ZONE', StageResult.FAIL, reason)
@@ -607,6 +641,8 @@ class DrivingNode(Node):
                 self.notify_tts('가속표지판이 감지되었습니다. 제한 속도 내로 이동합니다.')
                 self.mode = DrivingMode.NAV_TO_PARKING
                 self.set_speed(0.22)
+                self.set_inflation_radius_pair(
+                self.ACCEL_LOCAL_INFLATION_RADIUS, self.ACCEL_GLOBAL_INFLATION_RADIUS)
                 self.accel_zone_enter_time = self.get_clock().now()
                 self.accel_zone_max_speed = 0.0
                 self.accel_sustain_start = None
@@ -728,6 +764,8 @@ class DrivingNode(Node):
             self.camera_matrix = np.array(msg.k, dtype=np.float64).reshape(3, 3)
             self.dist_coeffs = np.array(msg.d, dtype=np.float64)
             self.get_logger().info('CameraInfo received. ArUco pose estimation enabled.')
+
+    # ================= 가속 속도 판단  =================   
 
     def on_odom(self, msg):
         if self.is_estopped:
@@ -1107,6 +1145,39 @@ class DrivingNode(Node):
             self.get_logger().info(f'[set_speed] 속도 변경 {"성공" if ok else "실패"}')
         except Exception as e:
             self.get_logger().warn(f'[set_speed] 응답 처리 실패: {e}')
+
+    # ================= 속도 파라미터 제어 =================
+
+    def set_inflation_radius(self, radius: float, clients=None):
+        """지정한 costmap들의 inflation_radius를 실시간으로 변경. clients가 없으면 로컬+글로벌 둘 다."""
+        if clients is None:   # [변경]
+            clients = [self.local_costmap_param_client, self.global_costmap_param_client]   # [추가]
+
+        param = Parameter()
+        param.name = 'inflation_layer.inflation_radius'
+        param.value = ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=radius)
+        req = SetParameters.Request()
+        req.parameters = [param]
+
+        for client in clients:   # [추가] 각 costmap마다 반복 호출
+            if not client.wait_for_service(timeout_sec=1.0):
+                self.get_logger().warn(f'{client.srv_name} 서비스 응답 없음')
+                continue
+            future = client.call_async(req)
+            future.add_done_callback(
+                lambda f, name=client.srv_name: self._on_inflation_response(f, name))   # [변경]
+
+    def _on_inflation_response(self, future, client_name: str):   # [변경] 어느 costmap 응답인지 구분
+        try:
+            result = future.result()
+            ok = result.results[0].successful
+            self.get_logger().info(f'[inflation_radius] {client_name} 변경 {"성공" if ok else "실패"}')
+        except Exception as e:
+            self.get_logger().warn(f'[inflation_radius] {client_name} 응답 처리 실패: {e}')
+            
+    def set_inflation_radius_pair(self, local_radius: float, global_radius: float):   # [추가]
+        self.set_inflation_radius(local_radius, clients=[self.local_costmap_param_client])
+        self.set_inflation_radius(global_radius, clients=[self.global_costmap_param_client])
 
     # ================= LED 제어 =================
     def set_led(self, state_key):

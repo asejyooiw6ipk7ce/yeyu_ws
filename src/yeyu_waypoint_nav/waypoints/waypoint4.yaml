@@ -37,7 +37,7 @@ waypoints:
   y: -8.1
   yaw: 0.15
 - name: wp9
-  x: -0.5
+  x: -0.4
   y: -8.1
   yaw: 0.15
 - name: wp10
@@ -45,8 +45,12 @@ waypoints:
   y: -8.1
   yaw: 1.5
 - name: wp11
-  x: 0.4
-  y: -5.5
-  yaw: 1.5
+  x: -0.4
+  y: -4.2
+  yaw: -1.5
+# - name: wp11
+#   x: 0.4
+#   y: -5.5
+#   yaw: 1.5
 
 

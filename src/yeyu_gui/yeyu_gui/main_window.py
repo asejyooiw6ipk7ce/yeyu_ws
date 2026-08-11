@@ -10,20 +10,24 @@ from PyQt5.QtWidgets import (
 
 from yeyu_gui.ros_bridge import DashboardRosNode, NO_OBSTACLE_READING
 
-TOTAL_WAYPOINTS = 7   # driving_waypoint_node.py의 wp1~wp7 코스 길이
+TOTAL_WAYPOINTS =11   # driving_waypoint_node.py의 wp1~wp7 코스 길이
 
-STAGE_ROWS = ['NAV_WAYPOINT', 'SIGNAL_WAIT', 'ACCEL_ZONE', 'PARKING']
+STAGE_ROWS = ['NAV_WAYPOINT', 'SIGNAL_WAIT', 'ACCEL_ZONE', 'PARKING', 'OBSTACLE']
 STAGE_LABELS = {
     'NAV_WAYPOINT': '경로 주행',
     'SIGNAL_WAIT': '신호대기',
     'ACCEL_ZONE': '가속구간',
     'PARKING': '직각주차',
+    'OBSTACLE': '장애물 감지',
+    'COMPLETE': '주행완료',
 }
 MODE_LABELS = {
     'NAV_WAYPOINT': '경로 주행 중',
     'SIGNAL_WAIT': '신호대기 중',
     'ACCEL_ZONE': '가속구간 통과 중',
     'PARKING': '직각주차 중',
+    'NAV_TO_END': '도착점으로 이동 중',
+    'COMPLETE': '주행완료',
 }
 RESULT_COLORS = {
     'PASS': QColor('#2e7d32'),
@@ -54,6 +58,7 @@ class MainWindow(QMainWindow):
         self.ros_node = ros_node
         self.active_trajectory = 1
         self.pending_retry_button = None
+        self._last_event_key = None
 
         self.setWindowTitle('주행 대시보드')
         self.resize(1100, 780)
@@ -64,7 +69,7 @@ class MainWindow(QMainWindow):
 
         root.addLayout(self._build_top_bar())
         root.addLayout(self._build_cards())
-        root.addWidget(self._build_camera())
+        root.addLayout(self._build_camera())
         root.addLayout(self._build_middle_row(), stretch=1)
         root.addLayout(self._build_bottom_bar())
 
@@ -127,13 +132,26 @@ class MainWindow(QMainWindow):
 
     # ================= 카메라 =================
     def _build_camera(self):
+        layout = QHBoxLayout() 
         self.camera_label = QLabel('카메라 영상 대기 중...')
         self.camera_label.setAlignment(Qt.AlignCenter)
         self.camera_label.setFixedHeight(300)
         self.camera_label.setStyleSheet(
             'background-color: #202020; color: #aaa; border-radius: 8px;')
         self.camera_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        return self.camera_label
+        layout.addWidget(self.camera_label)
+
+        self.debug_camera_label = QLabel('주차 디버그 영상 대기 중...')   # [추가]
+        self.debug_camera_label.setAlignment(Qt.AlignCenter)              # [추가]
+        self.debug_camera_label.setFixedHeight(300)                        # [추가]
+        self.debug_camera_label.setStyleSheet(                             # [추가]
+            'background-color: #202020; color: #aaa; border-radius: 8px;')  # [추가]
+        self.debug_camera_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)  # [추가]
+        layout.addWidget(self.debug_camera_label)   # [추가]
+
+        return layout   # [변경] 위젯이 아니라 레이아웃을 반환
+
+
 
     # ================= 구간 진행상황 + 이상 이벤트 =================
     def _build_middle_row(self):
@@ -148,7 +166,7 @@ class MainWindow(QMainWindow):
         self.stage_table.setEditTriggers(QTableWidget.NoEditTriggers)
         for row, stage in enumerate(STAGE_ROWS):
             self.stage_table.setItem(row, 0, QTableWidgetItem(STAGE_LABELS[stage]))
-            self.stage_table.setItem(row, 1, QTableWidgetItem('대기'))
+            self.stage_table.setItem(row, 1, QTableWidgetItem('대기중'))
             self.stage_table.setItem(row, 2, QTableWidgetItem(''))
         stage_box.addWidget(self.stage_table)
         layout.addLayout(stage_box, stretch=1)
@@ -216,6 +234,7 @@ class MainWindow(QMainWindow):
         sig.battery.connect(self._on_battery)
         sig.obstacle.connect(self._on_obstacle)
         sig.image.connect(self._on_image)
+        sig.debug_image.connect(self._on_debug_image)
         sig.estop_result.connect(self._on_estop_result)
         sig.retry_result.connect(self._on_retry_result)
 
@@ -236,6 +255,18 @@ class MainWindow(QMainWindow):
         reason = status['reason']
         wp_index = status['wp_index']
 
+        if mode == 'RETRY_COMPLETE':
+            # reason에 재시험 대상 구간명이 실려 온다 (예: 'PARKING' -> '직각주차 재시험 종료')
+            target_label = STAGE_LABELS.get(reason, reason)
+            self.mode_value.setText(f'{target_label} 재시험 종료')
+            return
+
+        if mode == 'COMPLETE':
+            # 구간별 성공/실패와 무관하게, 도착 자체를 상단 카드와 이벤트 로그에 남김
+            self.mode_value.setText(MODE_LABELS.get('COMPLETE'))
+            self._append_event('COMPLETE', reason)
+            return
+
         self.mode_value.setText(MODE_LABELS.get(mode, mode or '--'))
         self.waypoint_value.setText(f'wp{wp_index + 1} / {TOTAL_WAYPOINTS}')
 
@@ -250,7 +281,7 @@ class MainWindow(QMainWindow):
                 self.stage_table.item(row, 1).setForeground(color)
 
         if result == 'FAIL':
-            self._append_event(mode, reason)
+            self._append_event(mode, f'{reason} → 재시험을 권장합니다.')
 
         active_target = RETRY_TARGETS.get(self.active_trajectory, (None,))[0]
         if result in ('PASS', 'FAIL') and mode == active_target:
@@ -258,11 +289,16 @@ class MainWindow(QMainWindow):
             self._refresh_trajectory_highlight()
 
     def _append_event(self, mode: str, reason: str):
-        row = 0
-        self.event_table.insertRow(row)
-        self.event_table.setItem(row, 0, QTableWidgetItem(datetime.now().strftime('%H:%M:%S')))
-        self.event_table.setItem(row, 1, QTableWidgetItem(STAGE_LABELS.get(mode, mode)))
-        self.event_table.setItem(row, 2, QTableWidgetItem(reason))
+            event_key = (mode, reason)
+            if event_key == self._last_event_key:
+                return
+            self._last_event_key = event_key
+
+            row = 0
+            self.event_table.insertRow(row)
+            self.event_table.setItem(row, 0, QTableWidgetItem(datetime.now().strftime('%H:%M:%S')))
+            self.event_table.setItem(row, 1, QTableWidgetItem(STAGE_LABELS.get(mode, mode)))
+            self.event_table.setItem(row, 2, QTableWidgetItem(reason))
 
     @pyqtSlot(float, float)
     def _on_odom(self, x: float, y: float):
@@ -283,7 +319,7 @@ class MainWindow(QMainWindow):
             self.obstacle_value.setStyleSheet('font-size: 18px; font-weight: bold;')
             return
         self.obstacle_value.setText(f'{min_range:.2f} m')
-        color = '#c62828' if min_range < 0.3 else '#212121'
+        color = '#c62828' if min_range < 0.05 else '#212121'
         self.obstacle_value.setStyleSheet(f'font-size: 18px; font-weight: bold; color: {color};')
 
     @pyqtSlot(QImage)
@@ -292,6 +328,13 @@ class MainWindow(QMainWindow):
             self.camera_label.width(), self.camera_label.height(),
             Qt.KeepAspectRatio, Qt.SmoothTransformation)
         self.camera_label.setPixmap(pixmap)
+
+    @pyqtSlot(QImage)                        # [추가]
+    def _on_debug_image(self, image: QImage):   # [추가]
+        pixmap = QPixmap.fromImage(image).scaled(   # [추가]
+            self.debug_camera_label.width(), self.debug_camera_label.height(),   # [추가]
+            Qt.KeepAspectRatio, Qt.SmoothTransformation)   # [추가]
+        self.debug_camera_label.setPixmap(pixmap)   # [추가]   
 
     # ================= 버튼 동작 =================
     def _on_estop_clicked(self):
