@@ -295,7 +295,9 @@ class DrivingNode(Node):
         self._start_check_timer = self.create_timer(0.3, self._try_start)
 
     def _try_start(self):
-        if self.pub_led.get_subscription_count() == 0 & self.audio_pub.get_subscription_count() == 0:
+        if (self.pub_led.get_subscription_count() == 0 
+            or self.audio_pub.get_subscription_count() == 0
+            or self.status_pub.get_subscription_count() == 0):
             return
         self._start_check_timer.cancel()
         self.set_led('START')
@@ -655,6 +657,8 @@ class DrivingNode(Node):
     # ================= 장애물(초음파) 대응 =================
     def on_obstacle_distance(self, msg: Float32):
         if self.is_estopped or self.is_handling_obstacle:
+            return
+        if self.mode == DrivingMode.RESULT_SUMMARY:   # [추가] 코스 완료 후에는 장애물 반응 안 함
             return
         if msg.data <= self.OBSTACLE_STOP_DISTANCE_CM:
             self.get_logger().warn(f'[OBSTACLE] 장애물 감지: {msg.data:.1f} cm')
