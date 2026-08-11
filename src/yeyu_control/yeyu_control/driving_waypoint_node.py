@@ -233,13 +233,17 @@ class DrivingNode(Node):
         #self.debug_pub = self.create_publisher(CompressedImage, '/parking_debug_image/compressed', 10)
         self.audio_pub = self.create_publisher(AudioCommand, '/audio/command', 10)
 
+        # ========== 타이머 ===========
         self.timer_period = 1.0 / max(self.control_rate_hz, 0.5)
+
         # self.crank_timer = self.create_timer(timer_period, self.crank_control_loop)
         self.crank_timer = None
         #self.parking_timer = self.create_timer(timer_period, self.parking_control_loop)
         self.parking_timer = None
 
         self.s_course_timer = self.create_timer(self.timer_period, self.s_course_control_loop)
+
+        self.vision_timer = self.create_timer(self.timer_period, self.camera_processing_loop)
 
         # --- HSV 색상 범위 ---
         self.GREEN_LOWER = np.array([35, 40, 40])
@@ -656,6 +660,19 @@ class DrivingNode(Node):
         except Exception as e:
             self.get_logger().warn(f'republish 실패: {e}')
 
+        # 판정용 프레임은 저장만 하고 타이머로 넘김
+        with self.camera_lock:
+            self.latest_frame = flipped
+            self.latest_frame_header = msg.header
+            
+
+    def camera_processing_loop(self):
+        with self.camera_lock:
+            flipped = self.latest_frame
+            header = self.latest_frame_header
+        if flipped is None:
+            return
+
         if self.mode == DrivingMode.SIGNAL_WAIT:
             self._process_signal(flipped)
         elif self.mode == DrivingMode.ACCEL_ZONE:
@@ -719,6 +736,9 @@ class DrivingNode(Node):
                 self.accel_sustain_start = None      # 추가
                 self.wp_index = 7 #wp8로 이동
                 self.send_waypoint(self.waypoints[self.wp_index])
+                # TODO 가속 타이머 추가함
+                if self.accel_timer is None:
+                    self.accel_timer = self.create_timer(self.timer_period, self.accel_zone_check_loop)
         else:
             self.blue_count = 0
 
@@ -834,7 +854,9 @@ class DrivingNode(Node):
         self.current_yaw = math.atan2(
             2 * (q.w * q.z + q.x * q.y),
             1 - 2 * (q.y * q.y + q.z * q.z))
-        
+
+    #TODO odom콜백에서 제어함수 떼어냄(accel_timer)
+    def accel_zone_check_loop(self):
         if self.is_estopped:
             return
         
@@ -863,6 +885,10 @@ class DrivingNode(Node):
                     self._report_stage('ACCEL_ZONE', StageResult.PASS, reason)
                     self.get_logger().info(f'[ACCEL_ZONE] {reason}')
                     self.notify_tts('가속구간을 규정 속도로 통과했습니다.')
+                    # 판정 끝났으니 타이머 종료
+                    if self.accel_timer is not None:
+                        self.accel_timer.cancel()
+                        self.accel_timer = None
         else:
             if self.accel_last_below_time is None:
                 self.accel_last_below_time = now
@@ -942,6 +968,10 @@ class DrivingNode(Node):
                 reason = f'재시도 {self.parking_retry_count}/{self.max_retry_count}회 소진, 마커 정렬 실패'
                 self._report_stage('PARKING', StageResult.FAIL, reason)
                 self.notify_tts('직각주차에 실패했습니다.')
+
+                if self.parking_timer is not None:
+                    self.parking_timer.cancel()
+                    self.parking_timer = None
 
                 if self.run_phase == RunPhase.RETRY:
                     self._finish_retry()
