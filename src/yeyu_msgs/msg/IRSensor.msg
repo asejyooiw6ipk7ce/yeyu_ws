@@ -1,0 +1,3 @@
+bool ir_sensor_l
+bool ir_sensor_c
+bool ir_sensor_r
