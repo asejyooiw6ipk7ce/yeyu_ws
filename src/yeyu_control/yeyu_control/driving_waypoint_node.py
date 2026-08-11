@@ -216,8 +216,8 @@ class DrivingNode(Node):
             depth=1,
         )
 
-        #self.create_subscription(CompressedImage, self.image_topic, self.on_camera, sensor_qos)
-        #self.create_subscription(CameraInfo, self.camera_info_topic, self.camera_info_callback, sensor_qos)
+        self.create_subscription(CompressedImage, self.image_topic, self.on_camera, sensor_qos)
+        self.create_subscription(CameraInfo, self.camera_info_topic, self.camera_info_callback, sensor_qos)
         self.create_subscription(PoseWithCovarianceStamped, '/amcl_pose', self.on_amcl_pose, 10)
         # ! odom:가속구간에서만 씀 / amcl : 라인 트레이싱에서만 씀
         self.create_subscription(Odometry, '/odom', self.on_odom, 10)
@@ -244,6 +244,8 @@ class DrivingNode(Node):
         self.s_course_timer = self.create_timer(self.timer_period, self.s_course_control_loop)
 
         self.vision_timer = self.create_timer(self.timer_period, self.camera_processing_loop)
+
+        self.nav_result_timer = self.create_timer(self.timer_period, self._nav_result_loop)
 
         # --- HSV 색상 범위 ---
         self.GREEN_LOWER = np.array([35, 40, 40])
@@ -515,6 +517,24 @@ class DrivingNode(Node):
         result = future.result()
         status = result.status
         self.get_logger().info(f'[on_nav_result] status={status}')
+
+        with self._nav_result_lock:
+            self._nav_result_pending = status
+
+    def _nav_result_timer_callback(self):
+        # ? 비상정지 상태면 대기 중이던 nav 결과를 그냥 버림(뒤늦게 도착한 nav가 mode를 바꾸거나 send_waypoint 호출하는거 방지)
+        if self.is_estopped:
+            with self._nav_result_lock:
+                self._nav_result_pending = None
+            return
+        
+        with self._nav_result_lock:
+            if self._nav_result_pending is None:
+                return
+
+            # ? 락 안에서 읽고 즉시 비우기(다음 타이머 틱에서 중복처리 또는 다른 스레드가 값 덮어쓰기 방지)
+            status = self._nav_result_pending    
+            self._nav_result_pending = None
 
         if status == GoalStatus.STATUS_SUCCEEDED:
             self.nav_fail_count = 0
