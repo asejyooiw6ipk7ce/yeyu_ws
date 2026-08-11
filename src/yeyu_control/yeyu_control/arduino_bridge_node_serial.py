@@ -3,8 +3,7 @@ import threading
 from typing import List, Optional
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import ColorRGBA, UInt8
-from yeyu_msgs.msg import IRSensor
+from std_msgs.msg import Bool, ColorRGBA, UInt8
 import serial
 
 # 통신규격 암호 변수
@@ -59,7 +58,9 @@ class ArduinoSensorBridge(Node):
         self.rx_checksum = 0
 
         # 퍼블리셔 선언
-        self.ir_state_pub = self.create_publisher(IRSensor, 'sensor_bridge/ir_state', 10)
+        self.ir_l_state_pub = self.create_publisher(Bool, 'sensor_bridge/ir_l_state', 10)
+        self.ir_c_state_pub = self.create_publisher(Bool, 'sensor_bridge/ir_c_state', 10)
+        self.ir_r_state_pub = self.create_publisher(Bool, 'sensor_bridge/ir_r_state', 10)
         self.rgb_state_pub = self.create_publisher(ColorRGBA, 'sensor_bridge/rgb_state', 10)
         self.rx_sequence_pub = self.create_publisher(UInt8, 'sensor_bridge/rx_sequence', 10)
         
@@ -290,12 +291,18 @@ class ArduinoSensorBridge(Node):
         
 
         # [설명] 해석된 데이터를 바탕으로 각각 ROS 2 토픽에 맞춰 퍼블리시를 수행합니다.
-        ir_msg = IRSensor()
-        ir_msg.ir_sensor_l = ir_l_state
-        ir_msg.ir_sensor_c = ir_c_state
-        ir_msg.ir_sensor_r = ir_r_state
-        self.ir_state_pub.publish(ir_msg)
-
+        ir_l_msg = Bool()
+        ir_l_msg.data = ir_l_state
+        self.ir_l_state_pub.publish(ir_l_msg)
+        
+        ir_c_msg = Bool()
+        ir_c_msg.data = ir_c_state
+        self.ir_c_state_pub.publish(ir_c_msg)
+        
+        ir_r_msg = Bool()
+        ir_r_msg.data = ir_r_state
+        self.ir_r_state_pub.publish(ir_r_msg)
+        
         # [설명] 아두이노에서 수신한 0 ~ 255 정수형 RGB 값을 ROS 2 표준에 맞추어 
         # 255.0으로 나눈 뒤 0.0 ~ 1.0의 float 값 범위로 변환하여 최종 퍼블리시합니다.
         rgb_msg = ColorRGBA()

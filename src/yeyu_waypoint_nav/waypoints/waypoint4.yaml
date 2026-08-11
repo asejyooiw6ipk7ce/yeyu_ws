@@ -1,15 +1,15 @@
 frame_id: map
 initial_pose:
-  x: -2.844
-  y: 1.842
-  yaw: 0.115
+  x: -2.73
+  y: 1.75
+  yaw: 0.1
 waypoints:
 - name: wp1
-  x: -2.844
-  y: 1.842
-  yaw: 0.115
+  x: -2.73
+  y: 1.75
+  yaw: 0.1
 - name: wp2
-  x: -0.228
+  x: 0.0
   y: 0.083
   yaw: -1.515
 - name: wp3

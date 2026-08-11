@@ -1,3 +1,5 @@
+from enum import Enum, auto
+
 class DrivingMode(Enum):
     NAV_TO_START = auto()      # 초기위치 → 크랭크 시작점(wp1)
     TRACKING_CRANK = auto()    # 크랭크 코스 (IR+카메라 라인트레이싱) 
