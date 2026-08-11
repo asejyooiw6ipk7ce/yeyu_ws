@@ -3,7 +3,8 @@ import threading
 from typing import List, Optional
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Bool, ColorRGBA, UInt8
+from std_msgs.msg import ColorRGBA, UInt8 , Float32, Bool
+from yeyu_msgs.msg import IRSensor
 import serial
 
 # 통신규격 암호 변수
@@ -13,6 +14,9 @@ END_BYTE_2 = 0xEE          # 편지봉투 뒷 스티커 반쪽
 PKT_SENSOR_STATE = 0x31    # 아두이노가 보낸 상태보고서 편지번호
 PKT_SET_RGB = 0x42         # LED 명령 할 편지 번호
 PKT_PING = 0x7F            # 생사확인할 편지 번호
+PKT_OBSTACLE_STATE = 0x32       # [추가] 아두이노 → Pi: 거리(cm) 보고
+PKT_SET_EMERGENCY_LED = 0x43    # [추가] Pi → 아두이노: 좌우 비상 LED on/off
+
 MAX_PAYLOAD_LEN = 32       # 편지 속에 담길 수 있는 최대 알맹이 크기
 
 
@@ -58,14 +62,14 @@ class ArduinoSensorBridge(Node):
         self.rx_checksum = 0
 
         # 퍼블리셔 선언
-        self.ir_l_state_pub = self.create_publisher(Bool, 'sensor_bridge/ir_l_state', 10)
-        self.ir_c_state_pub = self.create_publisher(Bool, 'sensor_bridge/ir_c_state', 10)
-        self.ir_r_state_pub = self.create_publisher(Bool, 'sensor_bridge/ir_r_state', 10)
+        self.ir_state_pub = self.create_publisher(IRSensor, 'sensor_bridge/ir_state', 10)
         self.rgb_state_pub = self.create_publisher(ColorRGBA, 'sensor_bridge/rgb_state', 10)
         self.rx_sequence_pub = self.create_publisher(UInt8, 'sensor_bridge/rx_sequence', 10)
+        self.obstacle_distance_pub = self.create_publisher(Float32, 'sensor_bridge/obstacle_distance_cm', 10) 
         
         # 서브스크라이버 선언
         self.rgb_cmd_sub = self.create_subscription(ColorRGBA, 'sensor_bridge/rgb_cmd', self.rgb_cmd_callback, 10)
+        self.emergency_led_cmd_sub = self.create_subscription(Bool, 'sensor_bridge/emergency_led_cmd', self.emergency_led_cmd_callback, 10)
 
         # 시리얼 포트 오픈
         self.open_serial()
@@ -156,6 +160,12 @@ class ArduinoSensorBridge(Node):
         green = self.clamp_color_to_u8(msg.g)
         blue = self.clamp_color_to_u8(msg.b)
         self.send_packet(PKT_SET_RGB, [red, green, blue])
+
+    # [추가] 비상 LED on/off 명령 콜백 함수입니다.
+    # 예시: driving_node가 Bool(data=True)를 보내면 좌우 LED가 동시에 켜지도록
+    # 1바이트 payload([1] 또는 [0])로 변환해 아두이노로 전송합니다.
+    def emergency_led_cmd_callback(self, msg: Bool):   # [추가]
+        self.send_packet(PKT_SET_EMERGENCY_LED, [1 if msg.data else 0])   # [추가]
 
 
     def ping_timer_callback(self):
@@ -271,6 +281,8 @@ class ArduinoSensorBridge(Node):
         # [설명] 아두이노로부터 상태 패킷인 0x31 (PKT_SENSOR_STATE)이 들어오면 parse_sensor_state 함수를 호출합니다.
         if packet_id == PKT_SENSOR_STATE:
             self.parse_sensor_state(length, sequence, payload)
+        elif packet_id == PKT_OBSTACLE_STATE:   # [추가]
+            self.parse_obstacle_state(length, payload)   # [추가]
         else:
             self.get_logger().debug(f'Unknown packet id: 0x{packet_id:02X}')
 
@@ -291,18 +303,12 @@ class ArduinoSensorBridge(Node):
         
 
         # [설명] 해석된 데이터를 바탕으로 각각 ROS 2 토픽에 맞춰 퍼블리시를 수행합니다.
-        ir_l_msg = Bool()
-        ir_l_msg.data = ir_l_state
-        self.ir_l_state_pub.publish(ir_l_msg)
-        
-        ir_c_msg = Bool()
-        ir_c_msg.data = ir_c_state
-        self.ir_c_state_pub.publish(ir_c_msg)
-        
-        ir_r_msg = Bool()
-        ir_r_msg.data = ir_r_state
-        self.ir_r_state_pub.publish(ir_r_msg)
-        
+        ir_msg = IRSensor()
+        ir_msg.ir_sensor_l = ir_l_state
+        ir_msg.ir_sensor_c = ir_c_state
+        ir_msg.ir_sensor_r = ir_r_state
+        self.ir_state_pub.publish(ir_msg)
+
         # [설명] 아두이노에서 수신한 0 ~ 255 정수형 RGB 값을 ROS 2 표준에 맞추어 
         # 255.0으로 나눈 뒤 0.0 ~ 1.0의 float 값 범위로 변환하여 최종 퍼블리시합니다.
         rgb_msg = ColorRGBA()
@@ -315,6 +321,19 @@ class ArduinoSensorBridge(Node):
         seq_msg = UInt8()
         seq_msg.data = sequence & 0xFF
         self.rx_sequence_pub.publish(seq_msg)
+
+    # [추가] 아두이노에서 전송한 초음파 거리 데이터를 해석하는 함수입니다.
+    def parse_obstacle_state(self, length: int, payload: List[int]):   # [추가]
+        # [추가] payload는 거리(cm) 1바이트여야 합니다.
+        if length != 1:   # [추가]
+            self.get_logger().warn(f'Invalid obstacle state payload length: {length}')   # [추가]
+            return   # [추가]
+
+        distance_cm = payload[0]   # [추가] 0~255 범위, 255는 "응답없음/범위밖"
+
+        msg = Float32()   # [추가]
+        msg.data = float(distance_cm)   # [추가]
+        self.obstacle_distance_pub.publish(msg)   # [추가]
         
         
 
