@@ -3,7 +3,7 @@ import threading
 from typing import List, Optional
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import ColorRGBA, UInt8 , Float32
+from std_msgs.msg import ColorRGBA, UInt8 , Float32, Bool
 from yeyu_msgs.msg import IRSensor
 import serial
 
