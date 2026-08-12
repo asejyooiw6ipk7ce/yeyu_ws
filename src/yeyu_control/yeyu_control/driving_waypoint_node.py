@@ -207,6 +207,7 @@ class DrivingNode(Node):
         self.s_course_state = SCourseState.TRACKING
         self.s_line_offset = None
         self.s_line_last_seen_time = self.get_clock().now() - Duration(seconds=999.0)
+        self.s_last_valid_offset = None
 
         # --- 구독/발행 ---
         sensor_qos = QoSProfile(
@@ -238,6 +239,8 @@ class DrivingNode(Node):
             CompressedImage, '/camera/image_flipped/compressed', 10)
         self.debug_pub = self.create_publisher(   # [수정] 마찬가지로 _process_aruco에서 사용 중이라 복구
             CompressedImage, '/parking_debug_image/compressed', 10)
+        self.s_course_debug_pub = self.create_publisher(   # 추가
+            CompressedImage, '/s_course_debug_image/compressed', 10)
         self.audio_pub = self.create_publisher(AudioCommand, '/audio/command', 10)
 
         # ========== 타이머 ===========
@@ -339,16 +342,18 @@ class DrivingNode(Node):
         self.CRANK_LINE_LOST_TIMEOUT_SEC = 30.0
         self.CRANK_CREEP_DISTANCE_M = 0.07
 
-        self.S_ROI_TOP_RATIO = 0.85
+        self.S_ROI_TOP_RATIO = 0.6        # 0.85 -> 0.6 : 하단 40%만 봄
         self.S_LINE_BLACK_THRESHOLD = 60
-        self.S_LINE_PIXEL_MIN = 100
+        self.S_LINE_PIXEL_MIN = 50     #100 -> 50 : 50픽셀 이상의 픽셀이 있어야 라인있음 판정
         self.S_LINEAR_SPEED_MAX = 0.10
         self.S_LINEAR_SPEED_MIN = 0.04
         self.S_ANGULAR_GAIN = 0.9
         self.S_ANGULAR_MAX = 0.6
         self.S_OFFSET_DEADBAND = 0.05
-        self.S_LINE_LOST_TIMEOUT_SEC = 1.2
+        self.S_LINE_LOST_TIMEOUT_SEC = 30.0 #1.2 -> 30.0
         self.S_ARRIVAL_TOLERANCE_M = 0.10
+        self.S_OFFSET_JUMP_LIMIT = 0.4   # 직전 오프셋 대비 이만큼 이상 튀면 무시 (0~1 스케일, 실측 후 조정)
+        self.S_BOTTOM_BAND_HEIGHT_RATIO = 0.3   # 채택된 컨투어의 bounding box 중 하단 몇 %만으로 cx 계산할지
 
     # ================= 시작 시퀀스 (LED 구독자 대기) =================
     def on_startup(self):
@@ -363,6 +368,7 @@ class DrivingNode(Node):
         self.mode = DrivingMode.TRACKING_CRANK
         self.set_led('CRANK_COURSE')
         self.notify_tts('크랭크 코스를 시작합니다')
+
         self._report_stage('NAV_WAYPOINT', StageResult.IN_PROGRESS, '')   # [수정] 출발 시점에 경로 진행중 발행 누락 보완
         self._reset_crank_state()
         if self.crank_timer is None:
@@ -525,6 +531,7 @@ class DrivingNode(Node):
             self._nav_result_pending = status
 
     def _nav_result_loop(self):
+        # ? 비상정지 상태면 대기 중이던 nav 결과를 그냥 버림(뒤늦게 도착한 nav가 mode를 바꾸거나 send_waypoint 호출하는거 방지)
         if self.is_estopped:
             with self._nav_result_lock:
                 self._nav_result_pending = None
@@ -816,7 +823,7 @@ class DrivingNode(Node):
                         self.last_marker_time = self.get_clock().now()
 
             if self.enable_debug_image:
-                debug_frame = self._draw_debug_image(frame, corners, ids, observation, selected_index)
+                debug_frame = self._draw_parking_debug_image(frame, corners, ids, observation, selected_index)
                 try:
                     debugout_msg = self.bridge.cv2_to_compressed_imgmsg(debug_frame, dst_format='jpg')
                     debugout_msg.header = header
@@ -874,19 +881,79 @@ class DrivingNode(Node):
 
     def _detect_s_line_offset(self, cv_image) -> Optional[float]:
         h, w = cv_image.shape[:2]
-        roi = cv_image[int(h * self.S_ROI_TOP_RATIO):h, :]
+        roi_top = int(h * self.S_ROI_TOP_RATIO)
+        roi = cv_image[roi_top:h, :]
+
         gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-        mask = cv2.inRange(gray, 0, self.S_LINE_BLACK_THRESHOLD)
+        mask = cv2.inRange(gray, 0, self.S_LINE_BLACK_THRESHOLD)   #그레이스케일 + 밝기값이 0~threshold 사이인 곳은 흰색만 남기겠다(이진화)
 
-        if cv2.countNonZero(mask) < self.S_LINE_PIXEL_MIN:
-            return None
+        # 노이즈 제거 (작은 얼룩 없애기)
+        kernel = np.ones((3, 3), np.uint8)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
 
-        M = cv2.moments(mask)
-        if M['m00'] == 0:
-            return None
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-        cx = M['m10'] / M['m00']
-        return (cx - w / 2.0) / (w / 2.0)
+        offset = None
+        cx_full = None   # 디버그용: 원본 이미지 좌표계에서의 중심 x
+        best_contour = None
+
+        candidates = []
+        for c in contours:
+            area = cv2.contourArea(c)
+            if area < self.S_LINE_PIXEL_MIN:
+                continue
+
+            x, y, cw, ch = cv2.boundingRect(c)
+
+            if y <= 3 and cw > w * 0.5:    # 위에 붙어있고 + 폭이 넓으면 벽/가구
+                continue
+
+            # ! 컨투어 전체가 아니라 하단 일부 밴드만으로 cx 계산
+            band_h = max(1, int(ch * self.S_BOTTOM_BAND_HEIGHT_RATIO))
+            band_y_start = y + ch - band_h   # 이 컨투어의 bounding box 내 하단 밴드 시작 y (ROI 좌표계)
+
+            # 컨투어를 채운 마스크를 만들고, 그 중 하단 밴드 부분만 잘라서 무게중심 계산
+            contour_mask = np.zeros(mask.shape, dtype=np.uint8)    # 아무것도 없는 까만 도화지
+            cv2.drawContours(contour_mask, [c], -1, 255, -1)   # 새 도화지에 저 색종이 붙임
+            band_mask = contour_mask[band_y_start:y + ch, x:x + cw]
+
+            # ? 라인 덩어리 전체의 무게중심을 구함 (오해:특정 y줄을 딱 잘라서 보는게 아님=디버그에 나온 초록가로선의 y좌표와 연결되지않음)
+            # M = cv2.moments(c)                         # 컨투어 전체의 무게중심을 구함
+            M = cv2.moments(band_mask, binaryImage=True) # 컨투어의 S_BOTTOM_BAND_HEIGHT_RATIO부분만 잘라 무게중심 구함
+            if M['m00'] == 0:
+                continue
+            cx = x + (M['m10'] / M['m00'])
+
+            this_offset = (cx - w / 2.0) / (w / 2.0)
+
+            # 핵심 추가: 직전에 알던 라인 위치와 너무 멀면 후보에서 제외
+            if self.s_last_valid_offset is not None:
+                if abs(this_offset - self.s_last_valid_offset) > self.S_OFFSET_JUMP_LIMIT:
+                    continue
+
+            # 위치 필터: ROI 안에서 얼마나 아래쪽(바닥에 가까운지)에 있는지 점수화
+            bottom_y = y + ch   # 이 덩어리의 ROI 내 하단 y좌표
+            candidates.append((bottom_y, c, this_offset))
+
+        if candidates:
+            # 바닥에 가장 가까운(=bottom_y가 가장 큰) 덩어리를 라인으로 채택
+            candidates.sort(key=lambda t: t[0], reverse=True)
+            best_contour = candidates[0][1]
+            offset = candidates[0][2]
+            cx_full = (offset * (w / 2.0)) + (w / 2.0)
+            self.s_last_valid_offset = offset   # 성공했을 때만 "최근 유효 위치" 갱신
+
+            # 디버그용: 채택된 컨투어의 밴드 영역 좌표도 구해둠
+            bx, by, bcw, bch = cv2.boundingRect(best_contour)
+            band_h = max(1, int(bch * self.S_BOTTOM_BAND_HEIGHT_RATIO))
+            band_rect = (bx, by + bch - band_h, bcw, band_h)   # (x, y, w, h) — ROI 좌표계
+        else:
+            band_rect = None
+
+        if self.enable_debug_image:
+            self._draw_s_course_debug_image(cv_image, mask, roi_top, cx_full, offset, best_contour, band_rect)
+
+        return offset
 
     def on_odom(self, msg):
         q = msg.pose.pose.orientation
@@ -1199,7 +1266,8 @@ class DrivingNode(Node):
 
     def _publish_cmd(self, cmd: Twist) -> None:
         if not self.enable_motion:
-            self.cmd_pub.publish(Twist())
+            # ! 정지 명령 발행하면 teleop 명령하고 싶을 때 충돌할 수 있음
+            # self.cmd_pub.publish(Twist())
             return
         self.cmd_pub.publish(cmd)
 
@@ -1230,7 +1298,7 @@ class DrivingNode(Node):
         self._publish_status('NAV_TO_END', 'IN_PROGRESS', '주차 완료, 도착점으로 이동 중')   # [병합: A]
         self.send_waypoint(self.waypoints[self.wp_index])
 
-    def _draw_debug_image(self, frame, corners, ids, observation, selected_index):
+    def _draw_parking_debug_image(self, frame, corners, ids, observation, selected_index):
         debug = frame.copy()
         if ids is not None and len(ids) > 0:
             cv2.aruco.drawDetectedMarkers(debug, corners, ids)
@@ -1258,6 +1326,63 @@ class DrivingNode(Node):
             cv2.putText(debug, 'target marker not found', (10, 55),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.60, (0, 0, 255), 2, cv2.LINE_AA)
         return debug
+
+    def _draw_s_course_debug_image(self, cv_image, mask, roi_top, cx_full, offset, best_contour=None, band_rect=None):
+        h, w = cv_image.shape[:2]
+        debug = cv_image.copy()
+
+        # ROI 경계선 표시(민트 가로선)
+        cv2.rectangle(debug, (0, roi_top), (w, h), (255, 255, 0), 2)
+        # ?                     시작꼭짓점   끝꼭짓점    민트색     선 굵기
+
+        # 마스크를 컬러로 변환해서 ROI 위치에 반투명하게 덧씌우기
+        mask_color = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
+        mask_color[mask > 0] = (0, 0, 255)   # 검출된 라인 픽셀 빨간색
+        roi_region = debug[roi_top:h, :]
+        debug[roi_top:h, :] = cv2.addWeighted(roi_region, 0.6, mask_color, 0.4, 0)
+
+
+        # 실제로 채택된 컨투어만 초록 테두리로 강조
+        if best_contour is not None:
+            shifted = best_contour + [0, roi_top]   # ROI 좌표 -> 원본 이미지 좌표로 이동
+            cv2.drawContours(debug, [shifted], -1, (0, 255, 0), 2)
+
+        # 화면 중심선(흰색 세로선)
+        cv2.line(debug, (w // 2, roi_top), (w // 2, h), (255, 255, 255), 2)
+        # ?            세로중앙&하단40%영역 ~ 세로중앙&끝까지   
+
+        # + cx 계산에 쓰인 하단 밴드 영역 표시
+        if band_rect is not None:
+            bx, by, bcw, bch = band_rect
+            # band_rect는 ROI 좌표계이므로 원본 이미지 좌표로 변환(roi_top만큼 더해줌)
+            cv2.rectangle(debug, (bx, by + roi_top), (bx + bcw, by + bch + roi_top), (255, 0, 255), 2)
+            cv2.line(debug, (w // 2, roi_top), (w // 2, h), (255, 255, 255), 1)
+
+        # 검출된 라인 중심점(초록 가로선)
+        if cx_full is not None:
+            # cy = roi_top + (h - roi_top) // 2
+            if band_rect is not None:
+                _, by, _, bch = band_rect
+                cy = roi_top + by + bch // 2
+            else:
+                cy = roi_top + (h - roi_top) // 2
+                #? 관심영역에서시작+(ROI 세로길이 의 중점) => ROI의 중앙 Y좌표
+            cv2.circle(debug, (int(cx_full), cy), 6, (0, 255, 0), -1)
+            # ?                  라인중심(ofset) 반지름             속찬원
+            cv2.line(debug, (w // 2, cy), (int(cx_full), cy), (0, 255, 0), 2)
+
+        # 상태 텍스트
+        offset_text = f'offset={offset:.3f}' if offset is not None else 'LINE NOT FOUND'
+        cv2.putText(debug, offset_text, (10, 25),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.60, (0, 255, 255), 2, cv2.LINE_AA)
+        cv2.putText(debug, f's_course_state={self.s_course_state.name}', (10, 55),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 255), 2, cv2.LINE_AA)
+
+        try:
+            debug_msg = self.bridge.cv2_to_compressed_imgmsg(debug, dst_format='jpg')
+            self.s_course_debug_pub.publish(debug_msg)
+        except Exception as exc:
+            self._throttled_warn(f'[S_COURSE] debug image publish failed: {exc}')
 
     def _elapsed(self, start_time) -> float:
         return (self.get_clock().now() - start_time).nanoseconds * 1e-9
@@ -1538,14 +1663,15 @@ class DrivingNode(Node):
         angular_z = self._clamp(-self.S_ANGULAR_GAIN * offset,
                                 -self.S_ANGULAR_MAX, self.S_ANGULAR_MAX)
         linear_x = max(self.S_LINEAR_SPEED_MIN,
-                        self.S_LINEAR_SPEED_MAX * (1.0 - min(abs(offset), 1.0)))
+                        self.S_LINEAR_SPEED_MAX * (1.0 - min(abs(offset), 1.0)))  # ? 라인대로 가는 경우 최대속도, 라인과 벗어나면 최저속도(0은 안되게)
         self.publish_cmd(linear_x, angular_z)
 
     def _reset_s_course_state(self):
         with self.s_course_lock:
             self.s_course_state = SCourseState.TRACKING
             self.s_line_offset = None
-            self.s_line_last_seen_time = self.get_clock().now() - Duration(seconds=999.0)
+            self.s_line_last_seen_time = self.get_clock().now()
+            self.s_last_valid_offset = None   # 추가: 코스 새로 시작할 때 초기화
 
     def _check_s_course_arrival(self):
         with self.data_lock:
