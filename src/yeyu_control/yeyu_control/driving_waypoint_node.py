@@ -365,13 +365,9 @@ class DrivingNode(Node):
             self.get_logger().warn('[LED] 구독자, [audio]구독자 대기 중...')
             return
         self._start_check_timer.cancel()
-        # self.mode = DrivingMode.TRACKING_CRANK
-        # self.set_led('CRANK_COURSE')
-        # self.notify_tts('크랭크 코스를 시작합니다')
-        # TODO 테스트용
-        self.mode = DrivingMode.TRACKING_S
-        self.notify_tts('S자 코스를 시작합니다')
-        self._reset_s_course_state()
+        self.mode = DrivingMode.TRACKING_CRANK
+        self.set_led('CRANK_COURSE')
+        self.notify_tts('크랭크 코스를 시작합니다')
 
         self._report_stage('NAV_WAYPOINT', StageResult.IN_PROGRESS, '')   # [수정] 출발 시점에 경로 진행중 발행 누락 보완
         self._reset_crank_state()
