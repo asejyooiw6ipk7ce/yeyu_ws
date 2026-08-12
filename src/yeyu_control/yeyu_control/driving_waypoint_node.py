@@ -39,7 +39,7 @@ import numpy as np
 
 # ================= wp 도착 시 자동 모드 전환 테이블 =================
 NAV_ARRIVAL_TRANSITIONS = {
-    DrivingMode.NAV_TO_START: DrivingMode.TRACKING_CRANK,
+    # DrivingMode.NAV_TO_START: DrivingMode.TRACKING_CRANK,
     DrivingMode.NAV_TO_S: DrivingMode.TRACKING_S,
     DrivingMode.NAV_TO_SIGNAL: DrivingMode.SIGNAL_WAIT,
     DrivingMode.NAV_TO_ACCEL: DrivingMode.ACCEL_ZONE,
@@ -47,7 +47,7 @@ NAV_ARRIVAL_TRANSITIONS = {
 }
 
 LED_COLOR_MAP = {
-    'START':       (1.0, 0.0, 0.0),          # RED (255,0,0)
+    # 'START':       (1.0, 0.0, 0.0),          # RED (255,0,0)
     'CRANK_COURSE':  (128/255, 0.0, 1.0),      # PURPLE
     'S_COURSE':      (1.0, 20/255, 147/255),   # HOT PINK
     'SIGNAL_WAIT': (11/255, 1.0, 11/255),    # GREEN
@@ -264,7 +264,7 @@ class DrivingNode(Node):
         self.crank_timer = None
         self.parking_timer = None
 
-        self.s_course_timer = self.create_timer(self.timer_period, self.s_course_control_loop)
+        self.s_course_timer = None
         self.vision_timer = self.create_timer(self.timer_period, self.camera_processing_loop)
         self.nav_result_timer = self.create_timer(self.timer_period, self._nav_result_loop)
 
@@ -331,7 +331,7 @@ class DrivingNode(Node):
         self.log_throttle_sec = float(self.get_parameter('log_throttle_sec').value)
         self.enable_motion = self._get_bool_parameter('enable_motion')
 
-        self.CRANK_LINEAR_SPEED = 0.03
+        self.CRANK_LINEAR_SPEED = 0.05    # 0.03 -> 0.05
         self.CRANK_STEER_ANGULAR = 0.12
         self.CRANK_RECOVERY_SPEED = 0.02
         self.CRANK_TURN_ANGULAR_SPEED = 0.30
@@ -340,7 +340,7 @@ class DrivingNode(Node):
         self.CRANK_LINE_GRACE_SEC = 0.2
         self.CRANK_ARRIVAL_TOLERANCE_M = 0.15
         self.CRANK_LINE_LOST_TIMEOUT_SEC = 30.0
-        self.CRANK_CREEP_DISTANCE_M = 0.06 # 0.07 -> 0.06
+        self.CRANK_CREEP_DISTANCE_M = 0.06 # 0.07 -> 0.06 -> 0.07
 
         self.S_ROI_TOP_RATIO = 0.6        # 0.85 -> 0.6 : 하단 40%만 봄
         self.S_LINE_BLACK_THRESHOLD = 60
@@ -354,6 +354,8 @@ class DrivingNode(Node):
         self.S_ARRIVAL_TOLERANCE_M = 0.10
         self.S_OFFSET_JUMP_LIMIT = 0.4   # 직전 오프셋 대비 이만큼 이상 튀면 무시 (0~1 스케일, 실측 후 조정)
         self.S_BOTTOM_BAND_HEIGHT_RATIO = 0.3   # 채택된 컨투어의 bounding box 중 하단 몇 %만으로 cx 계산할지
+
+        self.vision_enable = False
 
     # ================= 시작 시퀀스 (LED 구독자 대기) =================
     def on_startup(self):
@@ -628,13 +630,14 @@ class DrivingNode(Node):
                     self.signal_wait_enter_time = self.get_clock().now()
                     self._report_stage('SIGNAL_WAIT', StageResult.IN_PROGRESS, '')
                 elif self.mode == DrivingMode.TRACKING_CRANK:
-                    self.set_led('CRANK_COURSE')
-                    self.notify_tts('크랭크 코스를 시작합니다.')
+                    # self.set_led('CRANK_COURSE')
+                    # self.notify_tts('크랭크 코스를 시작합니다.')
                     self._report_stage('CRANK_COURSE', StageResult.IN_PROGRESS, '')
                 elif self.mode == DrivingMode.TRACKING_S:
                     self.set_led('S_COURSE')
                     self.notify_tts('S자 코스를 시작합니다.')
                     self._reset_s_course_state()
+                    self.s_course_timer = self.create_timer(self.timer_period, self.s_course_control_loop)
                     self._report_stage('S_COURSE', StageResult.IN_PROGRESS, '')
                 elif self.mode == DrivingMode.ACCEL_ZONE:
                     self.set_led('ACCEL_ZONE')
@@ -673,6 +676,9 @@ class DrivingNode(Node):
 
     # ================= 카메라: 신호/표지판/ArUco 통합 콜백 (가벼움: 저장만) =================
     def on_camera(self, msg: CompressedImage):
+        if self.vision_enable is False:
+            return
+        
         if self.is_estopped:
             return
         if not msg.data:
@@ -697,6 +703,9 @@ class DrivingNode(Node):
             self.latest_frame_header = msg.header
 
     def camera_processing_loop(self):
+        if self.vision_enable is False:
+            return
+        
         with self.camera_lock:
             flipped = self.latest_frame
             header = self.latest_frame_header
@@ -1539,8 +1548,12 @@ class DrivingNode(Node):
 
         if elapsed < self.CRANK_LINE_LOST_TIMEOUT_SEC:
             if self.last_meaningful_ir == (1, 0, 0):
+                # self.publish_cmd(self.CRANK_RECOVERY_SPEED, self.CRANK_STEER_ANGULAR)
+                # ! 가속 시도 : 100,001일 때의 속도도 동일하게 + 각속도도 더 올림
                 self.publish_cmd(self.CRANK_RECOVERY_SPEED, self.CRANK_STEER_ANGULAR)
             elif self.last_meaningful_ir == (0, 0, 1):
+                # self.publish_cmd(self.CRANK_RECOVERY_SPEED, -self.CRANK_STEER_ANGULAR)
+                # ! 가속 시도 : 100,001일 때의 속도도 동일하게 + 각속도도 더 올림
                 self.publish_cmd(self.CRANK_RECOVERY_SPEED, -self.CRANK_STEER_ANGULAR)
             else:
                 self.publish_cmd(self.CRANK_RECOVERY_SPEED, 0.0)
@@ -1617,6 +1630,7 @@ class DrivingNode(Node):
         self.wp_index = 2
         self.mode = DrivingMode.NAV_TO_S
         self.send_waypoint(self.waypoints[2])
+        self.vision_enable = True
 
     def _on_crank_failed(self, reason: str):
         self.crank_state = LineCourseState.FAILED
@@ -1636,6 +1650,7 @@ class DrivingNode(Node):
         self.wp_index = 2
         self.mode = DrivingMode.NAV_TO_S
         self.send_waypoint(self.waypoints[2])
+        self.vision_enable = true
 
     def s_course_control_loop(self):
         if self.is_estopped:
