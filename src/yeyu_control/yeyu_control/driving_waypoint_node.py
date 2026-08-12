@@ -365,6 +365,10 @@ class DrivingNode(Node):
             self.get_logger().warn('[LED] 구독자, [audio]구독자 대기 중...')
             return
         self._start_check_timer.cancel()
+        self._pending_start_timer = self.create_timer(0.5, self._do_start)
+
+    def _do_start(self):   
+        self._pending_start_timer.cancel()
         self.mode = DrivingMode.TRACKING_CRANK
         self.set_led('CRANK_COURSE')
         self.notify_tts('크랭크 코스를 시작합니다')
@@ -552,6 +556,7 @@ class DrivingNode(Node):
                 self.mode = DrivingMode.TRACKING_CRANK
                 self.set_led('CRANK_COURSE')
                 self.notify_tts('크랭크 코스를 시작합니다')
+                self._report_stage('CRANK_COURSE', StageResult.IN_PROGRESS, '')
                 self._reset_crank_state()
                 if self.crank_timer is None:
                     self.crank_timer = self.create_timer(self.timer_period, self.crank_control_loop)
@@ -1699,7 +1704,7 @@ class DrivingNode(Node):
             return
 
         self.wp_index = 4
-        self.mode = DrivingMode.NAV_TO_MAZE
+        self.mode = DrivingMode.NAV_TO_SIGNAL
         self.send_waypoint(self.waypoints[4])
 
     def _on_s_course_failed(self, reason: str):
@@ -1714,7 +1719,7 @@ class DrivingNode(Node):
             return
 
         self.wp_index = 4
-        self.mode = DrivingMode.NAV_TO_MAZE
+        self.mode = DrivingMode.NAV_TO_SIGNAL
         self.send_waypoint(self.waypoints[4])
 
     # ================= LED 제어 =================
