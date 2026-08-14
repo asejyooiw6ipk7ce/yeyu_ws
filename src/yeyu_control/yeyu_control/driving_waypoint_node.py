@@ -789,7 +789,7 @@ class DrivingNode(Node):
     def on_obstacle_distance(self, msg: Float32):
         if self.is_estopped or self.is_handling_obstacle:
             return
-        if self.mode == DrivingMode.RESULT_SUMMARY:
+        if self.mode != DrivingMode.NAV_TO_END:
             return
         if msg.data <= self.OBSTACLE_STOP_DISTANCE_CM:
             self.get_logger().warn(f'[OBSTACLE] 장애물 감지: {msg.data:.1f} cm')
