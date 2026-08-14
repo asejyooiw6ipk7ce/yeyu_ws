@@ -2,9 +2,9 @@ from enum import Enum, auto
 
 class DrivingMode(Enum):
     NAV_TO_START = auto()      # 초기위치 → 크랭크 시작점(wp1)
-    TRACKING_CRANK = auto()    # 크랭크 코스 (IR+카메라 라인트레이싱) 
+    TRACING_CRANK = auto()    # 크랭크 코스 (IR+카메라 라인트레이싱) 
     NAV_TO_S = auto()          # 크랭크 도착점(wp2) → S자 시작점(wp3)로 이동
-    TRACKING_S = auto()        # S자 코스 (나중에 카메라 중심점 정렬로 구현)
+    TRACING_S = auto()        # S자 코스 (나중에 카메라 중심점 정렬로 구현)
     NAV_TO_MAZE = auto()       # S자 도착점(wp4 )→ 미로 시작점(wp5)
     NAV_TO_SIGNAL = auto()     # 미로 시작점 → 시그널 시작점(wp6)
     SIGNAL_WAIT = auto()
