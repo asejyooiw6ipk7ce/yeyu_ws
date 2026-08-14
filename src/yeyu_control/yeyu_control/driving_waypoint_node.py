@@ -359,8 +359,8 @@ class DrivingNode(Node):
         self.S_ANGULAR_MAX = 0.6
         self.S_OFFSET_DEADBAND = 0.05
         self.S_LINE_LOST_TIMEOUT_SEC = 30.0 #1.2 -> 30.0
-        self.S_ARRIVAL_TOLERANCE_M = 0.10
-        self.S_OFFSET_JUMP_LIMIT = 0.4   # 직전 오프셋 대비 이만큼 이상 튀면 무시 (0~1 스케일, 실측 후 조정)
+        self.S_ARRIVAL_TOLERANCE_M = 0.3   # 0.10 -> 0.15 -> 0.2 -> 0.3
+        self.S_OFFSET_JUMP_LIMIT = 0.8   # 0.4 -> 0.8
         self.S_BOTTOM_BAND_HEIGHT_RATIO = 0.3   # 채택된 컨투어의 bounding box 중 하단 몇 %만으로 cx 계산할지
 
         self.vision_enable = False
@@ -790,7 +790,7 @@ class DrivingNode(Node):
     def on_obstacle_distance(self, msg: Float32):
         if self.is_estopped or self.is_handling_obstacle:
             return
-        if self.mode == DrivingMode.RESULT_SUMMARY:
+        if self.mode != DrivingMode.NAV_TO_END:
             return
         if msg.data <= self.OBSTACLE_STOP_DISTANCE_CM:
             self.get_logger().warn(f'[OBSTACLE] 장애물 감지: {msg.data:.1f} cm')
@@ -908,7 +908,10 @@ class DrivingNode(Node):
         roi = cv_image[roi_top:h, :]
 
         gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-        mask = cv2.inRange(gray, 0, self.S_LINE_BLACK_THRESHOLD)   #그레이스케일 + 밝기값이 0~threshold 사이인 곳은 흰색만 남기겠다(이진화)
+        # mask = cv2.inRange(gray, 0, self.S_LINE_BLACK_THRESHOLD)   #그레이스케일 + 밝기값이 0~threshold 사이인 곳은 흰색만 남기겠다(이진화)
+        # ! 자동노출로 인해 밝기가 달라지면 객체 인식이 안됨 -> 이미지 밝기 분포를 자동 분석해 threshold를 동적으로 결정
+        blur = cv2.GaussianBlur(gray, (5, 5), 0)
+        _, mask = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)  
 
         # 노이즈 제거 (작은 얼룩 없애기)
         kernel = np.ones((3, 3), np.uint8)
@@ -1601,6 +1604,7 @@ class DrivingNode(Node):
             return
         target = self.waypoints[1]
         dist = math.hypot(x - float(target['x']), y - float(target['y']))
+        # self.get_logger().info(f'[CRANK] 현재=({x:.3f}, {y:.3f}), 목표=({target["x"]}, {target["y"]}), dist={dist:.3f}m')  # ← 추가
         if dist <= self.CRANK_ARRIVAL_TOLERANCE_M:
             self._on_crank_done()
 
@@ -1658,15 +1662,15 @@ class DrivingNode(Node):
             offset = self.s_line_offset
             last_seen = self.s_line_last_seen_time
 
+        self._check_s_course_arrival()
+        if self.s_course_state == SCourseState.DONE:
+            return
+
         if offset is None:
             if self._elapsed(last_seen) > self.S_LINE_LOST_TIMEOUT_SEC:
                 self._on_s_course_failed('카메라에서 라인 미검출 지속')
                 return
             self.publish_cmd(self.S_LINEAR_SPEED_MIN, 0.0)
-            return
-
-        self._check_s_course_arrival()
-        if self.s_course_state == SCourseState.DONE:
             return
 
         if abs(offset) < self.S_OFFSET_DEADBAND:
@@ -1690,9 +1694,12 @@ class DrivingNode(Node):
         with self.data_lock:
             x, y = self.current_x, self.current_y
         if x is None:
+            self.get_logger().warn('[TRACING_CRANK] 현재 위치를 알 수 없습니다.')
             return
         target = self.waypoints[3]
-        if math.hypot(x - float(target['x']), y - float(target['y'])) <= self.S_ARRIVAL_TOLERANCE_M:
+        dist = math.hypot(x - float(target['x']), y - float(target['y'])) 
+        self.get_logger().info(f'[S_COURSE] 현재=({x:.3f}, {y:.3f}), 목표=({target["x"]}, {target["y"]}), dist={dist:.3f}m')
+        if dist <= self.S_ARRIVAL_TOLERANCE_M:
             self._on_s_course_done()
 
     def _on_s_course_done(self):
