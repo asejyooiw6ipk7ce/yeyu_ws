@@ -639,7 +639,7 @@ class DrivingNode(Node):
                 elif self.mode == DrivingMode.TRACING_S:
                     self.set_led('TRACING_S')
                     self._report_stage('TRACING_S', StageResult.IN_PROGRESS, '')
-                    self._reset_TRACING_S_state()
+                    self._reset_s_course_state()
                     if self.s_course_timer is None:
                         self.s_course_timer = self.create_timer(self.timer_period, self.s_course_control_loop)
                 elif self.mode == DrivingMode.SIGNAL_WAIT:
