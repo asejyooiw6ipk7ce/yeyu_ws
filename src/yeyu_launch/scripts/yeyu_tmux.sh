@@ -1,29 +1,19 @@
 #!/bin/bash
 # ================================================================
-# turtlebot3_tmux.sh
-# tmux 세션(yeyu_robot) 안에 6개 노드를 창(window)으로 띄웁니다.
-# 각 창은 자체적으로 "무한 재시작 루프"를 돌기 때문에,
-# 개별 노드가 죽어도 그 노드만 스스로 재시작됩니다.
-#
-# 서브커맨드:
-#   boot     세션을 새로 만들고 즉시 리턴합니다 (접속 X, 블로킹 X).
-#            → supervisor가 PM2 프로세스로서 이 명령만 호출합니다.
-#   stop     세션을 종료합니다.
-#   status   창 목록/상태를 출력합니다.
-#   attach   세션에 직접 접속합니다 (Ctrl+B, D 로 분리).
-#   respawn <윈도우이름>   특정 창 하나만 강제로 재생성합니다.
-#                          (supervisor가 죽은 창을 스스로 고칠 때 사용)
+# yeyu_launch/scripts/yeyu_tmux.sh
+# 구조: yeyu_launch/{nodes,lib,logs,scripts}
+# 이 파일은 scripts/ 안에 있고, nodes/lib/logs는 한 단계 위(..)에 있음
 # ================================================================
 set -uo pipefail
 
 SESSION="yeyu_robot"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-NODES_DIR="${SCRIPT_DIR}/nodes"
-LOG_DIR="${SCRIPT_DIR}/logs/nodes"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"   # .../yeyu_launch/scripts
+LAUNCH_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"                  # .../yeyu_launch
+NODES_DIR="${LAUNCH_DIR}/nodes"
+LOG_DIR="${LAUNCH_DIR}/logs/nodes"
 
 mkdir -p "${LOG_DIR}"
 
-# 창 이름 : 실행할 노드 스크립트 (순서대로 생성됨)
 WINDOWS=(
     "01-bringup:01_bringup.sh"
     "02-camera:02_camera.sh"
@@ -33,8 +23,6 @@ WINDOWS=(
     "06-driving:06_driving.sh"
 )
 
-# 각 창에서 돌아갈 명령: 무한 루프로 노드 실행, 죽으면 3초 후 재시작.
-# 화면 + 로그 파일에 동시에 기록(tee).
 build_window_cmd() {
     local name="$1"
     local script="$2"
@@ -62,7 +50,6 @@ script_for_window() {
     return 1
 }
 
-# 세션만 만들고 즉시 리턴 (접속하지 않음, 블로킹하지 않음)
 boot_session() {
     if tmux has-session -t "${SESSION}" 2>/dev/null; then
         echo "[tmux boot] 기존 세션(${SESSION})이 있어 종료 후 새로 만듭니다."
@@ -111,7 +98,6 @@ attach_session() {
     tmux attach -t "${SESSION}"
 }
 
-# 특정 창 하나만 강제로 재생성 (supervisor의 자가 치유용)
 respawn_window() {
     local name="$1"
     local script
