@@ -39,8 +39,8 @@ import numpy as np
 
 # ================= wp 도착 시 자동 모드 전환 테이블 =================
 NAV_ARRIVAL_TRANSITIONS = {
-    DrivingMode.NAV_TO_START: DrivingMode.TRACKING_CRANK,
-    DrivingMode.NAV_TO_S: DrivingMode.TRACKING_S,
+    DrivingMode.NAV_TO_START: DrivingMode.TRACING_CRANK,
+    DrivingMode.NAV_TO_S: DrivingMode.TRACING_S,
     DrivingMode.NAV_TO_SIGNAL: DrivingMode.SIGNAL_WAIT,
     DrivingMode.NAV_TO_ACCEL: DrivingMode.ACCEL_ZONE,
     DrivingMode.NAV_TO_PARKING: DrivingMode.PARKING,
@@ -448,7 +448,7 @@ class DrivingNode(Node):
         elif target == 'TRACING_CRANK':    
             self._reset_crank_state()
         elif target == 'TRACING_S':
-            self._reset_TRACING_S_state()
+            self._reset_s_course_state()
 
         self.get_logger().info(f'[RETRY] {target} 재시험 시작 → wp{entry["wp_index"] + 1}로 이동')
         label = STAGE_TTS_LABELS.get(target, target)
@@ -726,7 +726,7 @@ class DrivingNode(Node):
             self._process_speed_sign(flipped)
         elif self.mode == DrivingMode.PARKING:
             self._process_aruco(flipped, header, image_width=flipped.shape[1], image_height=flipped.shape[0])   # [수정] msg.header → header
-        elif self.mode == DrivingMode.TRACKING_S:
+        elif self.mode == DrivingMode.TRACING_S:
             offset = self._detect_s_line_offset(flipped)
             with self.s_course_lock:
                 self.s_line_offset = offset
@@ -1467,7 +1467,7 @@ class DrivingNode(Node):
             self._publish_cmd(Twist())
             return
         with self.crank_lock:
-            if self.mode != DrivingMode.TRACKING_CRANK:
+            if self.mode != DrivingMode.TRACING_CRANK:
                 return
             if self.crank_state in (LineCourseState.DONE, LineCourseState.FAILED):
                 self._publish_cmd(Twist())
@@ -1648,7 +1648,7 @@ class DrivingNode(Node):
             self._publish_cmd(Twist())
             return
         with self.s_course_lock:
-            if self.mode != DrivingMode.TRACKING_S:
+            if self.mode != DrivingMode.TRACING_S:
                 return
             if self.s_course_state in (SCourseState.DONE, SCourseState.FAILED):
                 self._publish_cmd(Twist())
