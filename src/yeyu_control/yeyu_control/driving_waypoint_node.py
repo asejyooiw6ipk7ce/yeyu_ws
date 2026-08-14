@@ -39,7 +39,7 @@ import numpy as np
 
 # ================= wp 도착 시 자동 모드 전환 테이블 =================
 NAV_ARRIVAL_TRANSITIONS = {
-    # DrivingMode.NAV_TO_START: DrivingMode.TRACKING_CRANK,
+    DrivingMode.NAV_TO_START: DrivingMode.TRACKING_CRANK,
     DrivingMode.NAV_TO_S: DrivingMode.TRACKING_S,
     DrivingMode.NAV_TO_SIGNAL: DrivingMode.SIGNAL_WAIT,
     DrivingMode.NAV_TO_ACCEL: DrivingMode.ACCEL_ZONE,
@@ -48,12 +48,20 @@ NAV_ARRIVAL_TRANSITIONS = {
 
 LED_COLOR_MAP = {
     # 'START':       (1.0, 0.0, 0.0),          # RED (255,0,0)
-    'CRANK_COURSE':  (128/255, 0.0, 1.0),      # PURPLE
-    'S_COURSE':      (1.0, 20/255, 147/255),   # HOT PINK
+    'TRACING_CRANK':  (128/255, 0.0, 1.0),      # PURPLE
+    'TRACING_S':      (1.0, 20/255, 147/255),   # HOT PINK
     'SIGNAL_WAIT': (11/255, 1.0, 11/255),    # GREEN
     'ACCEL_ZONE':  (0.0, 1.0, 1.0),          # BLUE
     'PARKING':     (1.0, 70/255, 0.0),       # YELLOW
     'END':         (1.0, 0.0, 0.0),          # RED
+}
+
+STAGE_TTS_LABELS = {   # 발음 가능한 한글 라벨을 별도로 관리
+    'TRACING_CRANK': '크랭크 코스',
+    'TRACING_S': 'S자 코스',
+    'SIGNAL_WAIT': '신호대기',
+    'ACCEL_ZONE': '가속구간',
+    'PARKING': '직각주차',
 }
 
 
@@ -63,12 +71,13 @@ class RunPhase(Enum):
 
 
 RETRY_ENTRY = {
-    'CRANK_COURSE': {'wp_index': 0, 'mode': DrivingMode.NAV_TO_START},
-    'S_COURSE': {'wp_index': 2, 'mode': DrivingMode.NAV_TO_S},
+    'TRACING_CRANK': {'wp_index': 0, 'mode': DrivingMode.NAV_TO_START},
+    'TRACING_S': {'wp_index': 2, 'mode': DrivingMode.NAV_TO_S},
     'SIGNAL_WAIT': {'wp_index': 5, 'mode': DrivingMode.NAV_TO_SIGNAL},
     'ACCEL_ZONE':  {'wp_index': 6, 'mode': DrivingMode.NAV_TO_ACCEL},
     'PARKING':     {'wp_index': 8, 'mode': DrivingMode.NAV_TO_PARKING},
 }
+
 HOME_WP_INDEX = 10
 
 
@@ -135,8 +144,8 @@ class DrivingNode(Node):
         # --- 구간별 성공/실패 결과 저장소 ---
         self.stage_results = {
             'NAV_WAYPOINT': StageResult.IN_PROGRESS,
-            'CRANK_COURSE': StageResult.IN_PROGRESS,
-            'S_COURSE': StageResult.IN_PROGRESS,
+            'TRACING_CRANK': StageResult.IN_PROGRESS,
+            'TRACING_S': StageResult.IN_PROGRESS,
             'SIGNAL_WAIT': StageResult.IN_PROGRESS,
             'ACCEL_ZONE': StageResult.IN_PROGRESS,
             'PARKING': StageResult.IN_PROGRESS,
@@ -204,7 +213,6 @@ class DrivingNode(Node):
         self.crank_creep_start_time = None
         self.crank_creep_target_sec = 0.0
 
-        self.s_course_state = SCourseState.TRACKING
         self.s_line_offset = None
         self.s_line_last_seen_time = self.get_clock().now() - Duration(seconds=999.0)
         self.s_last_valid_offset = None
@@ -237,7 +245,7 @@ class DrivingNode(Node):
         self.status_pub = self.create_publisher(DrivingStatus, '/driving_status', 10)
         self.image_pub = self.create_publisher(   # [수정] 주석 처리되어 있었으나 on_camera에서 실제로 사용 중이라 복구
             CompressedImage, '/camera/image_flipped/compressed', 10)
-        self.debug_pub = self.create_publisher(   # [수정] 마찬가지로 _process_aruco에서 사용 중이라 복구
+        self.parking_debug_pub = self.create_publisher(   # [수정] 마찬가지로 _process_aruco에서 사용 중이라 복구
             CompressedImage, '/parking_debug_image/compressed', 10)
         self.s_course_debug_pub = self.create_publisher(   # 추가
             CompressedImage, '/s_course_debug_image/compressed', 10)
@@ -363,20 +371,24 @@ class DrivingNode(Node):
         self._start_check_timer = self.create_timer(0.3, self._try_start)
 
     def _try_start(self):
-        if self.pub_led.get_subscription_count() == 0 or self.audio_pub.get_subscription_count() == 0:
-            self.get_logger().warn('[LED] 구독자, [audio]구독자 대기 중...')
+        if (self.pub_led.get_subscription_count() == 0
+            or self.audio_pub.get_subscription_count() == 0
+            or self.status_pub.get_subscription_count() == 0):
+            self.get_logger().warn('[LED] 구독자, [audio]구독자 [gui]구독자 대기 중...')
             return
         self._start_check_timer.cancel()
         self._pending_start_timer = self.create_timer(0.5, self._do_start)
 
     def _do_start(self):   
         self._pending_start_timer.cancel()
-        self.mode = DrivingMode.TRACKING_CRANK
-        self.set_led('CRANK_COURSE')
+        self.set_led('TRACING_CRANK')
         self.notify_tts('크랭크 코스를 시작합니다')
+        self.wp_index = 1
+        self.mode = DrivingMode.TRACING_CRANK
 
         self._report_stage('NAV_WAYPOINT', StageResult.IN_PROGRESS, '') 
-        self._report_stage('CRANK_COURSE', StageResult.IN_PROGRESS, '')  # [수정] 출발 시점에 경로 진행중 발행 누락 보완
+        self._report_stage('TRACING_CRANK', StageResult.IN_PROGRESS, '')  # [수정] 출발 시점에 경로 진행중 발행 누락 보완
+
         self._reset_crank_state()
         if self.crank_timer is None:
             self.crank_timer = self.create_timer(self.timer_period, self.crank_control_loop)
@@ -433,17 +445,14 @@ class DrivingNode(Node):
 
         if target == 'PARKING':
             self._reset_parking_state()
-            if self.parking_timer is None:
-                self.parking_timer = self.create_timer(self.timer_period, self.parking_control_loop)
-        elif target == 'CRANK_COURSE':
+        elif target == 'TRACING_CRANK':    
             self._reset_crank_state()
-            if self.crank_timer is None:
-                self.crank_timer = self.create_timer(self.timer_period, self.crank_control_loop)
-        elif target == 'S_COURSE':
-            self._reset_s_course_state()
+        elif target == 'TRACING_S':
+            self._reset_TRACING_S_state()
 
         self.get_logger().info(f'[RETRY] {target} 재시험 시작 → wp{entry["wp_index"] + 1}로 이동')
-        self.notify_tts(f'{target} 구간을 재시험합니다.')
+        label = STAGE_TTS_LABELS.get(target, target)
+        self.notify_tts(f'{label} 구간을 재시험합니다.')
         self.send_waypoint(self.waypoints[self.wp_index])
 
         response.accepted = True
@@ -452,7 +461,8 @@ class DrivingNode(Node):
 
     def _finish_retry(self):
         self.get_logger().info(f'[RETRY] {self.retry_target} 재시험 판정 완료, 홈으로 복귀')
-        self.notify_tts(f'{self.retry_target} 재시험을 완료했습니다. 도착점으로 이동합니다.')
+        label = STAGE_TTS_LABELS.get(self.retry_target, self.retry_target)
+        self.notify_tts(f'{label} 재시험을 완료했습니다. 도착점으로 이동합니다.')
         self.wp_index = HOME_WP_INDEX
         self.mode = DrivingMode.NAV_TO_END
         self._publish_status('NAV_TO_END', 'IN_PROGRESS', '재시험 종료, 도착점으로 복귀 중')   # [병합: A]
@@ -466,9 +476,11 @@ class DrivingNode(Node):
         self.get_logger().info(f'[RETRY RESULT] {target}: {result.name}')
 
         if result == StageResult.PASS:
-            self.notify_tts(f'{target} 재시험 결과, 통과했습니다.')
+            label = STAGE_TTS_LABELS.get(target, target)
+            self.notify_tts(f'{label} 재시험 결과, 통과했습니다.')
         else:
-            self.notify_tts(f'{target} 재시험 결과, 실패했습니다.')
+            label = STAGE_TTS_LABELS.get(target, target)
+            self.notify_tts(f'{label} 재시험 결과, 실패했습니다.')
 
     # ================= 비상정지 서비스 콜백 =================
     def on_emergency_stop_request(self, request, response):
@@ -553,17 +565,6 @@ class DrivingNode(Node):
         if status == GoalStatus.STATUS_SUCCEEDED:
             self.nav_fail_count = 0
 
-            if self.wp_index == 0:   # wp1 도착 (재시험 등에서 사용)
-                self.wp_index = 1
-                self.mode = DrivingMode.TRACKING_CRANK
-                self.set_led('CRANK_COURSE')
-                self.notify_tts('크랭크 코스를 시작합니다')
-                self._report_stage('CRANK_COURSE', StageResult.IN_PROGRESS, '')
-                self._reset_crank_state()
-                if self.crank_timer is None:
-                    self.crank_timer = self.create_timer(self.timer_period, self.crank_control_loop)
-                return
-
             if self.wp_index == 4:   # wp5(미로 시작점) 도착 → wp6(신호등 진입점)로
                 self.wp_index = 5
                 self.mode = DrivingMode.NAV_TO_SIGNAL
@@ -575,11 +576,12 @@ class DrivingNode(Node):
                     self.accel_timer.cancel()
                     self.accel_timer = None
 
+                if self.stage_results['ACCEL_ZONE'] == StageResult.IN_PROGRESS:
+                    reason = f'{self.ACCEL_SUSTAIN_SEC}초 연속 유지 실패 (최고 {self.accel_zone_max_speed:.3f} m/s)'
+                    self._report_stage('ACCEL_ZONE', StageResult.FAIL, reason)
+                    self.notify_tts('가속구간에서 충분히 가속하지 못했습니다.')
+
                 if self.run_phase == RunPhase.RETRY:
-                    if self.stage_results['ACCEL_ZONE'] == StageResult.IN_PROGRESS:
-                        reason = f'{self.ACCEL_SUSTAIN_SEC}초 연속 유지 실패 (최고 {self.accel_zone_max_speed:.3f} m/s)'
-                        self._report_stage('ACCEL_ZONE', StageResult.FAIL, reason)
-                        self.notify_tts('가속구간에서 충분히 가속하지 못했습니다.')
                     self._finish_retry()
                     return
 
@@ -588,10 +590,6 @@ class DrivingNode(Node):
                 self.set_speed(0.13)
                 self.set_inflation_radius_pair(   # [병합: A]
                     self.DEFAULT_LOCAL_INFLATION_RADIUS, self.DEFAULT_GLOBAL_INFLATION_RADIUS)
-                if self.stage_results['ACCEL_ZONE'] == StageResult.IN_PROGRESS:
-                    reason = f'{self.ACCEL_SUSTAIN_SEC}초 연속 유지 실패 (최고 {self.accel_zone_max_speed:.3f} m/s)'
-                    self._report_stage('ACCEL_ZONE', StageResult.FAIL, reason)
-                    self.notify_tts('가속구간에서 충분히 가속하지 못했습니다.')
                 self._report_stage('NAV_WAYPOINT', StageResult.IN_PROGRESS, '')
                 self.send_waypoint(self.waypoints[self.wp_index])
                 return
@@ -630,25 +628,30 @@ class DrivingNode(Node):
                 self.get_logger().info(f'{self.mode.name} -> {next_mode.name} 모드 전환')
                 self.mode = next_mode
 
-                if self.mode == DrivingMode.SIGNAL_WAIT:
+
+                if self.mode == DrivingMode.TRACING_CRANK:
+                    self.wp_index = 1
+                    self.set_led('TRACING_CRANK')
+                    self._report_stage('TRACING_CRANK', StageResult.IN_PROGRESS, '')
+                    self._reset_crank_state()
+                    if self.crank_timer is None:
+                        self.crank_timer = self.create_timer(self.timer_period, self.crank_control_loop)
+                elif self.mode == DrivingMode.TRACING_S:
+                    self.set_led('TRACING_S')
+                    self._report_stage('TRACING_S', StageResult.IN_PROGRESS, '')
+                    self._reset_TRACING_S_state()
+                    if self.s_course_timer is None:
+                        self.s_course_timer = self.create_timer(self.timer_period, self.s_course_control_loop)
+                elif self.mode == DrivingMode.SIGNAL_WAIT:
                     self.set_led('SIGNAL_WAIT')
                     self.signal_wait_enter_time = self.get_clock().now()
                     self._report_stage('SIGNAL_WAIT', StageResult.IN_PROGRESS, '')
-                elif self.mode == DrivingMode.TRACKING_CRANK:
-                    # self.set_led('CRANK_COURSE')
-                    # self.notify_tts('크랭크 코스를 시작합니다.')
-                    self._report_stage('CRANK_COURSE', StageResult.IN_PROGRESS, '')
-                elif self.mode == DrivingMode.TRACKING_S:
-                    self.set_led('S_COURSE')
-                    self.notify_tts('S자 코스를 시작합니다.')
-                    self._reset_s_course_state()
-                    self.s_course_timer = self.create_timer(self.timer_period, self.s_course_control_loop)
-                    self._report_stage('S_COURSE', StageResult.IN_PROGRESS, '')
                 elif self.mode == DrivingMode.ACCEL_ZONE:
                     self.set_led('ACCEL_ZONE')
                     self._report_stage('ACCEL_ZONE', StageResult.IN_PROGRESS, '')
                 elif self.mode == DrivingMode.PARKING:
                     self.set_led('PARKING')
+                    self._report_stage('PARKING', StageResult.IN_PROGRESS, '')
                     self._reset_parking_state()
                     if self.parking_timer is None:
                         self.parking_timer = self.create_timer(self.timer_period, self.parking_control_loop)
@@ -776,7 +779,6 @@ class DrivingNode(Node):
                 self.accel_zone_max_speed = 0.0
                 self.accel_sustain_start = None
                 self.wp_index = 7
-                self._report_stage('NAV_WAYPOINT', StageResult.IN_PROGRESS, '')
                 self.send_waypoint(self.waypoints[self.wp_index])
                 if self.accel_timer is None:
                     self.accel_timer = self.create_timer(self.timer_period, self.accel_zone_check_loop)
@@ -1070,7 +1072,6 @@ class DrivingNode(Node):
             return
         if self.mode != DrivingMode.PARKING:
             return
-        self.publish_parking_state()
 
         if self._elapsed(self.parking_start_time) > self.max_parking_time_sec:
             if self.parking_state not in [ParkingState.DONE, ParkingState.FAILED]:
@@ -1266,23 +1267,6 @@ class DrivingNode(Node):
         with self.data_lock:
             self.latest_observation = None
 
-    def publish_parking_state(self) -> None:
-        msg = DrivingStatus()
-        msg.mode = self.mode.name
-        if self.parking_state == ParkingState.DONE:
-            msg.result = 'PASS'
-        elif self.parking_state == ParkingState.FAILED:
-            msg.result = 'FAIL'
-        else:
-            msg.result = 'IN_PROGRESS'
-        msg.reason = self.parking_state.value
-        msg.wp_index = self.wp_index
-        with self.data_lock:
-            obs = self.latest_observation
-        msg.error_lateral = float(obs.x_m) if obs is not None else 0.0
-        msg.error_distance = float(obs.z_m - self.parking_stop_distance_m) if obs is not None else 0.0
-        msg.retry_count = self.parking_retry_count
-        self.status_pub.publish(msg)
 
     def _publish_cmd(self, cmd: Twist) -> None:
         if not self.enable_motion:
@@ -1402,7 +1386,7 @@ class DrivingNode(Node):
             debug_msg = self.bridge.cv2_to_compressed_imgmsg(debug, dst_format='jpg')
             self.s_course_debug_pub.publish(debug_msg)
         except Exception as exc:
-            self._throttled_warn(f'[S_COURSE] debug image publish failed: {exc}')
+            self._throttled_warn(f'[TRACING_S] debug image publish failed: {exc}')
 
     def _elapsed(self, start_time) -> float:
         return (self.get_clock().now() - start_time).nanoseconds * 1e-9
@@ -1521,25 +1505,25 @@ class DrivingNode(Node):
             self.crank_line_lost_since = None
             self.last_meaningful_ir = ir
             self.publish_cmd(self.CRANK_LINEAR_SPEED, 0.0)
-            # self.get_logger().info(f'[CRANK_COURSE] IR={ir}, 직진 유지, cmd=({self.CRANK_LINEAR_SPEED:.3f}, 0.0)')
+            # self.get_logger().info(f'[TRACING_CRANK] IR={ir}, 직진 유지, cmd=({self.CRANK_LINEAR_SPEED:.3f}, 0.0)')
             return
         if ir == (1, 0, 0):
             self.crank_line_lost_since = None
             self.last_meaningful_ir = ir
             self.publish_cmd(self.CRANK_LINEAR_SPEED, self.CRANK_STEER_ANGULAR)
-            # self.get_logger().info(f'[CRANK_COURSE] IR={ir}, 왼쪽으로 회전, cmd=({self.CRANK_LINEAR_SPEED:.3f}, {self.CRANK_STEER_ANGULAR:.3f})')
+            # self.get_logger().info(f'[TRACING_CRANK] IR={ir}, 왼쪽으로 회전, cmd=({self.CRANK_LINEAR_SPEED:.3f}, {self.CRANK_STEER_ANGULAR:.3f})')
             return
         if ir == (0, 0, 1):
             self.crank_line_lost_since = None
             self.last_meaningful_ir = ir
             self.publish_cmd(self.CRANK_LINEAR_SPEED, -self.CRANK_STEER_ANGULAR)
-            # self.get_logger().info(f'[CRANK_COURSE] IR={ir}, 오른쪽으로 회전, cmd=({self.CRANK_LINEAR_SPEED:.3f}, {-self.CRANK_STEER_ANGULAR:.3f})')
+            # self.get_logger().info(f'[TRACING_CRANK] IR={ir}, 오른쪽으로 회전, cmd=({self.CRANK_LINEAR_SPEED:.3f}, {-self.CRANK_STEER_ANGULAR:.3f})')
             return
         if ir == (0, 0, 0):
             self._handle_crank_line_lost()
             return
 
-        self._throttled_warn(f'[CRANK_COURSE] 예상치 못한 IR 조합:{ir}')
+        self._throttled_warn(f'[TRACING_CRANK] 예상치 못한 IR 조합:{ir}')
 
     def _handle_crank_line_lost(self):
         now = self.get_clock().now()
@@ -1572,7 +1556,7 @@ class DrivingNode(Node):
         self.crank_creep_target_sec = self.CRANK_CREEP_DISTANCE_M / self.CRANK_LINEAR_SPEED
         self.crank_state = LineCourseState.CREEPING
         self.publish_cmd(self.CRANK_LINEAR_SPEED, 0.0)
-        self.get_logger().info(f'[CRANK_COURSE] CREEPING 시작, target_sec={self.crank_creep_target_sec:.3f}')
+        self.get_logger().info(f'[TRACING_CRANK] CREEPING 시작, target_sec={self.crank_creep_target_sec:.3f}')
 
     def _handle_crank_creeping(self):
         elapsed = self._elapsed(self.crank_creep_start_time)
@@ -1585,7 +1569,7 @@ class DrivingNode(Node):
         self.crank_state = LineCourseState.TURNING
         self.crank_state_enter_time = self.get_clock().now()
         self._publish_cmd(Twist())
-        self.get_logger().info(f'[CRANK_COURSE] TURNING 시작, target={target_delta_deg}도')
+        self.get_logger().info(f'[TRACING_CRANK] TURNING 시작, target={target_delta_deg}도')
 
     def _handle_crank_turning(self):
         elapsed = self._elapsed(self.crank_state_enter_time)
@@ -1600,7 +1584,7 @@ class DrivingNode(Node):
             self._publish_cmd(Twist())
             self.crank_state = LineCourseState.LINE_FOLLOWING
             self.crank_line_lost_since = None
-            self.get_logger().info('[CRANK_COURSE] TURNING 완료, LINE_FOLLOWING 복귀')
+            self.get_logger().info('[TRACING_CRANK] TURNING 완료, LINE_FOLLOWING 복귀')
             return
 
         direction = 1.0 if self.crank_turn_target_delta > 0 else -1.0
@@ -1611,7 +1595,7 @@ class DrivingNode(Node):
             x, y = self.current_x, self.current_y
 
         if x is None:
-            self.get_logger().warn('[CRANK_COURSE] 현재 위치를 알 수 없습니다.')
+            self.get_logger().warn('[TRACING_CRANK] 현재 위치를 알 수 없습니다.')
             return
         target = self.waypoints[1]
         dist = math.hypot(x - float(target['x']), y - float(target['y']))
@@ -1620,7 +1604,7 @@ class DrivingNode(Node):
 
     def _on_crank_done(self):
         self.crank_state = LineCourseState.DONE
-        self._report_stage('CRANK_COURSE', StageResult.PASS, '크랭크 코스 라인트레이싱 완료')
+        self._report_stage('TRACING_CRANK', StageResult.PASS, '크랭크 코스 라인트레이싱 완료')
         self.notify_tts('크랭크 코스를 완료했습니다.')
         self._publish_cmd(Twist())
 
@@ -1639,8 +1623,8 @@ class DrivingNode(Node):
 
     def _on_crank_failed(self, reason: str):
         self.crank_state = LineCourseState.FAILED
-        self._report_stage('CRANK_COURSE', StageResult.FAIL, reason)
-        self.get_logger().warn(f'[CRANK_COURSE] FAILED:{reason}')
+        self._report_stage('TRACING_CRANK', StageResult.FAIL, reason)
+        self.get_logger().warn(f'[TRACING_CRANK] FAILED:{reason}')
         self.notify_tts('크랭크 코스에 실패했습니다. 다음 구간으로 이동합니다.')
         self._publish_cmd(Twist())
 
@@ -1655,7 +1639,7 @@ class DrivingNode(Node):
         self.wp_index = 2
         self.mode = DrivingMode.NAV_TO_S
         self.send_waypoint(self.waypoints[2])
-        self.vision_enable = true
+        self.vision_enable = True
 
     def s_course_control_loop(self):
         if self.is_estopped:
@@ -1714,6 +1698,10 @@ class DrivingNode(Node):
         self.notify_tts('S자 코스를 완료했습니다.')
         self._publish_cmd(Twist())
 
+        if self.s_course_timer is not None:   # 추가
+            self.s_course_timer.cancel()
+            self.s_course_timer = None
+
         if self.run_phase == RunPhase.RETRY:
             self._finish_retry()
             return
@@ -1728,6 +1716,10 @@ class DrivingNode(Node):
         self.get_logger().warn(f'[S_COURSE] FAILED: {reason}')
         self.notify_tts('S자 코스에 실패했습니다. 다음 구간으로 이동합니다.')
         self._publish_cmd(Twist())
+
+        if self.s_course_timer is not None:   # 추가
+            self.s_course_timer.cancel()
+            self.s_course_timer = None
 
         if self.run_phase == RunPhase.RETRY:
             self._finish_retry()
