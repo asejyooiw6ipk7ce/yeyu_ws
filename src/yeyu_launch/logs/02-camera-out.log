@@ -1,0 +1,200 @@
+2026-08-14T14:20:53: [02_camera] camera.launch.py 시작
+2026-08-14T14:20:58: [INFO] [launch]: All log files can be found below /home/yeyu/.ros/log/2026-08-14-14-20-58-219712-YEYU-11261
+2026-08-14T14:20:58: [INFO] [launch]: Default logging verbosity is set to INFO
+2026-08-14T14:20:59: [INFO] [component_container-1]: process started with pid [11362]
+2026-08-14T14:20:59: [component_container-1] [INFO] [1786684859.983435870] [camera_container]: Load Library: /opt/ros/humble/lib/libcamera_component.so
+2026-08-14T14:21:00: [component_container-1] [INFO] [1786684860.450011702] [camera_container]: Found class: rclcpp_components::NodeFactoryTemplate<camera::CameraNode>
+2026-08-14T14:21:00: [component_container-1] [INFO] [1786684860.452261539] [camera_container]: Instantiate class: rclcpp_components::NodeFactoryTemplate<camera::CameraNode>
+2026-08-14T14:21:00: [component_container-1] [1:18:47.281990972] [11362] [1;32m INFO [1;37mCamera [1;34mcamera_manager.cpp:284 [0mlibcamera v0.1.0
+2026-08-14T14:21:00: [component_container-1] [1:18:47.334299713] [11381] [1;31mERROR [1;37mV4L2 [1;34mv4l2_device.cpp:353 [0;32m'imx219 10-0010': [0mUnable to set controls: Device or resource busy
+2026-08-14T14:21:00: [component_container-1] [1:18:47.376271312] [11381] [1;33m WARN [1;37mRPI [1;34mvc4.cpp:336 [0mMismatch between Unicam and CamHelper for embedded data usage!
+2026-08-14T14:21:00: [component_container-1] [1:18:47.379768464] [11381] [1;32m INFO [1;37mRPI [1;34mvc4.cpp:390 [0mRegistered camera /base/soc/i2c0mux/i2c@1/imx219@10 to Unicam device /dev/media0 and ISP device /dev/media1
+2026-08-14T14:21:00: [component_container-1] [1:18:47.395596322] [11362] [1;32m INFO [1;37mCamera [1;34mcamera.cpp:840 [0mPipeline handler in use by another process
+2026-08-14T14:21:00: [component_container-1] [ERROR] [1786684860.924307104] [camera_container]: Component constructor threw an exception: failed to acquire camera
+2026-08-14T14:21:00: [ERROR] [launch_ros.actions.load_composable_nodes]: Failed to load node '' of type 'camera::CameraNode' in container '/camera_container': Component constructor threw an exception: failed to acquire camera
+2026-08-14T14:33:37: [WARNING] [launch]: user interrupted with ctrl-c (SIGINT)
+2026-08-14T14:33:37: [INFO] [component_container-1]: sending signal 'SIGINT' to process[component_container-1]
+2026-08-14T14:33:37: [component_container-1] [INFO] [1786685617.039548901] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+2026-08-14T14:33:37: [component_container-1] [INFO] [1786685617.898344327] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+2026-08-14T14:33:38: [INFO] [component_container-1]: process has finished cleanly [pid 11362]
+2026-08-14T14:42:20: [02_camera] camera.launch.py 시작
+2026-08-14T14:42:22: [INFO] [launch]: All log files can be found below /home/yeyu/.ros/log/2026-08-14-14-42-22-297484-YEYU-13926
+2026-08-14T14:42:22: [INFO] [launch]: Default logging verbosity is set to INFO
+2026-08-14T14:42:23: [INFO] [component_container-1]: process started with pid [13999]
+2026-08-14T14:42:23: [component_container-1] [INFO] [1786686143.929604886] [camera_container]: Load Library: /opt/ros/humble/lib/libcamera_component.so
+2026-08-14T14:42:24: [component_container-1] [INFO] [1786686144.265504189] [camera_container]: Found class: rclcpp_components::NodeFactoryTemplate<camera::CameraNode>
+2026-08-14T14:42:24: [component_container-1] [INFO] [1786686144.269258040] [camera_container]: Instantiate class: rclcpp_components::NodeFactoryTemplate<camera::CameraNode>
+2026-08-14T14:42:24: [component_container-1] [1:40:10.996814010] [13999] [1;32m INFO [1;37mCamera [1;34mcamera_manager.cpp:284 [0mlibcamera v0.1.0
+2026-08-14T14:42:24: [component_container-1] [1:40:11.043233733] [14010] [1;31mERROR [1;37mV4L2 [1;34mv4l2_device.cpp:353 [0;32m'imx219 10-0010': [0mUnable to set controls: Device or resource busy
+2026-08-14T14:42:24: [component_container-1] [1:40:11.066050980] [14010] [1;33m WARN [1;37mRPI [1;34mvc4.cpp:336 [0mMismatch between Unicam and CamHelper for embedded data usage!
+2026-08-14T14:42:24: [component_container-1] [1:40:11.075997848] [14010] [1;32m INFO [1;37mRPI [1;34mvc4.cpp:390 [0mRegistered camera /base/soc/i2c0mux/i2c@1/imx219@10 to Unicam device /dev/media0 and ISP device /dev/media1
+2026-08-14T14:42:24: [component_container-1] [1:40:11.079923955] [13999] [1;32m INFO [1;37mCamera [1;34mcamera.cpp:840 [0mPipeline handler in use by another process
+2026-08-14T14:42:24: [component_container-1] [ERROR] [1786686144.472185226] [camera_container]: Component constructor threw an exception: failed to acquire camera
+2026-08-14T14:42:24: [ERROR] [launch_ros.actions.load_composable_nodes]: Failed to load node '' of type 'camera::CameraNode' in container '/camera_container': Component constructor threw an exception: failed to acquire camera
+2026-08-14T14:42:59: [WARNING] [launch]: user interrupted with ctrl-c (SIGINT)
+2026-08-14T14:42:59: [component_container-1] [INFO] [1786686179.358508301] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+2026-08-14T14:42:59: [INFO] [component_container-1]: sending signal 'SIGINT' to process[component_container-1]
+2026-08-14T14:42:59: [INFO] [component_container-1]: process has finished cleanly [pid 13999]
+2026-08-14T15:56:07: [02_camera] camera.launch.py 시작
+2026-08-14T15:56:10: [INFO] [launch]: All log files can be found below /home/yeyu/.ros/log/2026-08-14-15-56-10-281614-YEYU-3745
+2026-08-14T15:56:10: [INFO] [launch]: Default logging verbosity is set to INFO
+2026-08-14T15:56:12: [INFO] [component_container-1]: process started with pid [3820]
+2026-08-14T15:59:47: [WARNING] [launch]: user interrupted with ctrl-c (SIGINT)
+2026-08-14T15:59:48: [WARNING] [launch_ros.actions.load_composable_nodes]: Abandoning wait for the '/camera_container/_container/load_node' service response, due to shutdown.
+2026-08-14T15:59:48: [INFO] [component_container-1]: sending signal 'SIGINT' to process[component_container-1]
+2026-08-14T15:59:48: [INFO] [component_container-1]: process has finished cleanly [pid 3820]
+2026-08-14T15:59:48: [component_container-1] [INFO] [1786690787.854192028] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+2026-08-14T16:00:09: [02_camera] camera.launch.py 시작
+2026-08-14T16:00:11: [INFO] [launch]: All log files can be found below /home/yeyu/.ros/log/2026-08-14-16-00-11-533805-YEYU-4472
+2026-08-14T16:00:11: [INFO] [launch]: Default logging verbosity is set to INFO
+2026-08-14T16:00:12: [INFO] [component_container-1]: process started with pid [4546]
+2026-08-14T16:00:13: [component_container-1] [INFO] [1786690813.137344441] [camera_container]: Load Library: /opt/ros/humble/lib/libcamera_component.so
+2026-08-14T16:00:13: [component_container-1] [INFO] [1786690813.629550505] [camera_container]: Found class: rclcpp_components::NodeFactoryTemplate<camera::CameraNode>
+2026-08-14T16:00:13: [component_container-1] [INFO] [1786690813.629820126] [camera_container]: Instantiate class: rclcpp_components::NodeFactoryTemplate<camera::CameraNode>
+2026-08-14T16:00:13: [component_container-1] [0:13:20.523945720] [4546] [1;32m INFO [1;37mCamera [1;34mcamera_manager.cpp:284 [0mlibcamera v0.1.0
+2026-08-14T16:00:13: [component_container-1] [0:13:20.582106351] [4575] [1;33m WARN [1;37mRPI [1;34mvc4.cpp:336 [0mMismatch between Unicam and CamHelper for embedded data usage!
+2026-08-14T16:00:13: [component_container-1] [0:13:20.585005687] [4575] [1;32m INFO [1;37mRPI [1;34mvc4.cpp:390 [0mRegistered camera /base/soc/i2c0mux/i2c@1/imx219@10 to Unicam device /dev/media0 and ISP device /dev/media1
+2026-08-14T16:00:13: [component_container-1] [INFO] [1786690813.761383339] [camera]: 
+2026-08-14T16:00:13: [component_container-1] >> stream formats:
+2026-08-14T16:00:13: [component_container-1]    - NV21 (64x64 - 3280x2464)
+2026-08-14T16:00:13: [component_container-1]    - XBGR8888 (64x64 - 3280x2464)
+2026-08-14T16:00:13: [component_container-1]    - BGR888 (64x64 - 3280x2464)
+2026-08-14T16:00:13: [component_container-1]    - RGB888 (64x64 - 3280x2464)
+2026-08-14T16:00:13: [component_container-1]    - XRGB8888 (64x64 - 3280x2464)
+2026-08-14T16:00:13: [component_container-1]    - YUYV (64x64 - 3280x2464)
+2026-08-14T16:00:13: [component_container-1]    - UYVY (64x64 - 3280x2464)
+2026-08-14T16:00:13: [component_container-1] [INFO] [1786690813.761695552] [camera]: 
+2026-08-14T16:00:13: [component_container-1] >> BGR888 format sizes:
+2026-08-14T16:00:13: [component_container-1]    - 160x120
+2026-08-14T16:00:13: [component_container-1]    - 240x160
+2026-08-14T16:00:13: [component_container-1]    - 320x240
+2026-08-14T16:00:13: [component_container-1]    - 400x240
+2026-08-14T16:00:13: [component_container-1]    - 480x320
+2026-08-14T16:00:13: [component_container-1]    - 640x360
+2026-08-14T16:00:13: [component_container-1]    - 640x480
+2026-08-14T16:00:13: [component_container-1]    - 720x480
+2026-08-14T16:00:13: [component_container-1]    - 768x480
+2026-08-14T16:00:13: [component_container-1]    - 854x480
+2026-08-14T16:00:13: [component_container-1]    - 720x576
+2026-08-14T16:00:13: [component_container-1]    - 800x600
+2026-08-14T16:00:13: [component_container-1]    - 960x540
+2026-08-14T16:00:13: [component_container-1]    - 1024x576
+2026-08-14T16:00:13: [component_container-1]    - 960x640
+2026-08-14T16:00:13: [component_container-1]    - 1024x600
+2026-08-14T16:00:13: [component_container-1]    - 1024x768
+2026-08-14T16:00:13: [component_container-1]    - 1280x720
+2026-08-14T16:00:13: [component_container-1]    - 1152x864
+2026-08-14T16:00:13: [component_container-1]    - 1280x800
+2026-08-14T16:00:13: [component_container-1]    - 1360x768
+2026-08-14T16:00:13: [component_container-1]    - 1366x768
+2026-08-14T16:00:13: [component_container-1]    - 1440x900
+2026-08-14T16:00:13: [component_container-1]    - 1280x1024
+2026-08-14T16:00:13: [component_container-1]    - 1536x864
+2026-08-14T16:00:13: [component_container-1]    - 1280x1080
+2026-08-14T16:00:13: [component_container-1]    - 1600x900
+2026-08-14T16:00:13: [component_container-1]    - 1400x1050
+2026-08-14T16:00:13: [component_container-1]    - 1680x1050
+2026-08-14T16:00:13: [component_container-1]    - 1600x1200
+2026-08-14T16:00:13: [component_container-1]    - 1920x1080
+2026-08-14T16:00:13: [component_container-1]    - 2048x1080
+2026-08-14T16:00:13: [component_container-1]    - 1920x1200
+2026-08-14T16:00:13: [component_container-1]    - 2160x1080
+2026-08-14T16:00:13: [component_container-1]    - 2048x1152
+2026-08-14T16:00:13: [component_container-1]    - 2560x1080
+2026-08-14T16:00:13: [component_container-1]    - 2048x1536
+2026-08-14T16:00:13: [component_container-1]    - 2560x1440
+2026-08-14T16:00:13: [component_container-1]    - 2560x1600
+2026-08-14T16:00:13: [component_container-1]    - 2960x1440
+2026-08-14T16:00:13: [component_container-1]    - 2560x2048
+2026-08-14T16:00:13: [component_container-1]    - 3200x1800
+2026-08-14T16:00:13: [component_container-1]    - 3200x2048
+2026-08-14T16:00:13: [component_container-1]    - 3200x2400
+2026-08-14T16:00:13: [component_container-1] [INFO] [1786690813.761862195] [camera]: Sensor mode configuration: 1640x1232-SBGGR10_CSI2P
+2026-08-14T16:00:13: [component_container-1] [WARN] [1786690813.762354494] [camera]: stream configuration adjusted from "640x480-BGR888" to "640x480-BGR888"
+2026-08-14T16:00:13: [component_container-1] [0:13:20.587969039] [4546] [1;32m INFO [1;37mCamera [1;34mcamera.cpp:1033 [0mconfiguring streams: (0) 640x480-BGR888 (1) 1640x1232-SBGGR10_CSI2P
+2026-08-14T16:00:13: [component_container-1] [0:13:20.593935371] [4575] [1;32m INFO [1;37mRPI [1;34mvc4.cpp:512 [0mSensor: /base/soc/i2c0mux/i2c@1/imx219@10 - Selected sensor format: 1640x1232-SBGGR10_1X10 - Selected unicam format: 1640x1232-pBAA
+2026-08-14T16:00:13: [component_container-1] [INFO] [1786690813.773546516] [camera]: camera "/base/soc/i2c0mux/i2c@1/imx219@10" configured with 640x480-BGR888 stream
+2026-08-14T16:00:13: [component_container-1] [INFO] [1786690813.773994279] [camera]: camera calibration URL: file:///home/yeyu/yeyu_ws/src/yeyu_bringup/config/tb3_burger_picam2_640x480.yaml
+2026-08-14T16:00:13: [component_container-1] [WARN] [1786690813.776882134] [camera]: unknown control: NoiseReductionMode (39)
+2026-08-14T16:00:13: [INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/camera' in container '/camera_container'
+2026-08-14T16:01:10: [WARNING] [launch]: user interrupted with ctrl-c (SIGINT)
+2026-08-14T16:01:11: [component_container-1] [INFO] [1786690870.845663834] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+2026-08-14T16:01:11: [INFO] [component_container-1]: sending signal 'SIGINT' to process[component_container-1]
+2026-08-14T16:02:15: [02_camera] camera.launch.py 시작
+2026-08-14T16:02:18: [INFO] [launch]: All log files can be found below /home/yeyu/.ros/log/2026-08-14-16-02-18-339635-YEYU-4930
+2026-08-14T16:02:18: [INFO] [launch]: Default logging verbosity is set to INFO
+2026-08-14T16:02:20: [INFO] [component_container-1]: process started with pid [4981]
+2026-08-14T16:02:20: [component_container-1] [INFO] [1786690940.398371395] [camera_container]: Load Library: /opt/ros/humble/lib/libcamera_component.so
+2026-08-14T16:02:20: [component_container-1] [INFO] [1786690940.983860675] [camera_container]: Found class: rclcpp_components::NodeFactoryTemplate<camera::CameraNode>
+2026-08-14T16:02:20: [component_container-1] [INFO] [1786690940.985799639] [camera_container]: Instantiate class: rclcpp_components::NodeFactoryTemplate<camera::CameraNode>
+2026-08-14T16:02:21: [component_container-1] [0:15:27.907413432] [4981] [1;32m INFO [1;37mCamera [1;34mcamera_manager.cpp:284 [0mlibcamera v0.1.0
+2026-08-14T16:02:21: [component_container-1] [0:15:27.972720856] [5028] [1;33m WARN [1;37mRPI [1;34mvc4.cpp:336 [0mMismatch between Unicam and CamHelper for embedded data usage!
+2026-08-14T16:02:21: [component_container-1] [0:15:27.974747336] [5028] [1;32m INFO [1;37mRPI [1;34mvc4.cpp:390 [0mRegistered camera /base/soc/i2c0mux/i2c@1/imx219@10 to Unicam device /dev/media0 and ISP device /dev/media1
+2026-08-14T16:02:21: [component_container-1] [INFO] [1786690941.151150437] [camera]: 
+2026-08-14T16:02:21: [component_container-1] >> stream formats:
+2026-08-14T16:02:21: [component_container-1]    - NV21 (64x64 - 3280x2464)
+2026-08-14T16:02:21: [component_container-1]    - XBGR8888 (64x64 - 3280x2464)
+2026-08-14T16:02:21: [component_container-1]    - BGR888 (64x64 - 3280x2464)
+2026-08-14T16:02:21: [component_container-1]    - RGB888 (64x64 - 3280x2464)
+2026-08-14T16:02:21: [component_container-1]    - XRGB8888 (64x64 - 3280x2464)
+2026-08-14T16:02:21: [component_container-1]    - YUYV (64x64 - 3280x2464)
+2026-08-14T16:02:21: [component_container-1]    - UYVY (64x64 - 3280x2464)
+2026-08-14T16:02:21: [component_container-1] [INFO] [1786690941.151490446] [camera]: 
+2026-08-14T16:02:21: [component_container-1] >> BGR888 format sizes:
+2026-08-14T16:02:21: [component_container-1]    - 160x120
+2026-08-14T16:02:21: [component_container-1]    - 240x160
+2026-08-14T16:02:21: [component_container-1]    - 320x240
+2026-08-14T16:02:21: [component_container-1]    - 400x240
+2026-08-14T16:02:21: [component_container-1]    - 480x320
+2026-08-14T16:02:21: [component_container-1]    - 640x360
+2026-08-14T16:02:21: [component_container-1]    - 640x480
+2026-08-14T16:02:21: [component_container-1]    - 720x480
+2026-08-14T16:02:21: [component_container-1]    - 768x480
+2026-08-14T16:02:21: [component_container-1]    - 854x480
+2026-08-14T16:02:21: [component_container-1]    - 720x576
+2026-08-14T16:02:21: [component_container-1]    - 800x600
+2026-08-14T16:02:21: [component_container-1]    - 960x540
+2026-08-14T16:02:21: [component_container-1]    - 1024x576
+2026-08-14T16:02:21: [component_container-1]    - 960x640
+2026-08-14T16:02:21: [component_container-1]    - 1024x600
+2026-08-14T16:02:21: [component_container-1]    - 1024x768
+2026-08-14T16:02:21: [component_container-1]    - 1280x720
+2026-08-14T16:02:21: [component_container-1]    - 1152x864
+2026-08-14T16:02:21: [component_container-1]    - 1280x800
+2026-08-14T16:02:21: [component_container-1]    - 1360x768
+2026-08-14T16:02:21: [component_container-1]    - 1366x768
+2026-08-14T16:02:21: [component_container-1]    - 1440x900
+2026-08-14T16:02:21: [component_container-1]    - 1280x1024
+2026-08-14T16:02:21: [component_container-1]    - 1536x864
+2026-08-14T16:02:21: [component_container-1]    - 1280x1080
+2026-08-14T16:02:21: [component_container-1]    - 1600x900
+2026-08-14T16:02:21: [component_container-1]    - 1400x1050
+2026-08-14T16:02:21: [component_container-1]    - 1680x1050
+2026-08-14T16:02:21: [component_container-1]    - 1600x1200
+2026-08-14T16:02:21: [component_container-1]    - 1920x1080
+2026-08-14T16:02:21: [component_container-1]    - 2048x1080
+2026-08-14T16:02:21: [component_container-1]    - 1920x1200
+2026-08-14T16:02:21: [component_container-1]    - 2160x1080
+2026-08-14T16:02:21: [component_container-1]    - 2048x1152
+2026-08-14T16:02:21: [component_container-1]    - 2560x1080
+2026-08-14T16:02:21: [component_container-1]    - 2048x1536
+2026-08-14T16:02:21: [component_container-1]    - 2560x1440
+2026-08-14T16:02:21: [component_container-1]    - 2560x1600
+2026-08-14T16:02:21: [component_container-1]    - 2960x1440
+2026-08-14T16:02:21: [component_container-1]    - 2560x2048
+2026-08-14T16:02:21: [component_container-1]    - 3200x1800
+2026-08-14T16:02:21: [component_container-1]    - 3200x2048
+2026-08-14T16:02:21: [component_container-1]    - 3200x2400
+2026-08-14T16:02:21: [component_container-1] [INFO] [1786690941.151610461] [camera]: Sensor mode configuration: 1640x1232-SBGGR10_CSI2P
+2026-08-14T16:02:21: [component_container-1] [WARN] [1786690941.152133909] [camera]: stream configuration adjusted from "640x480-BGR888" to "640x480-BGR888"
+2026-08-14T16:02:21: [component_container-1] [0:15:27.977702031] [4981] [1;32m INFO [1;37mCamera [1;34mcamera.cpp:1033 [0mconfiguring streams: (0) 640x480-BGR888 (1) 1640x1232-SBGGR10_CSI2P
+2026-08-14T16:02:21: [component_container-1] [0:15:27.978669578] [5028] [1;32m INFO [1;37mRPI [1;34mvc4.cpp:512 [0mSensor: /base/soc/i2c0mux/i2c@1/imx219@10 - Selected sensor format: 1640x1232-SBGGR10_1X10 - Selected unicam format: 1640x1232-pBAA
+2026-08-14T16:02:21: [component_container-1] [INFO] [1786690941.155891340] [camera]: camera "/base/soc/i2c0mux/i2c@1/imx219@10" configured with 640x480-BGR888 stream
+2026-08-14T16:02:21: [component_container-1] [INFO] [1786690941.156402641] [camera]: camera calibration URL: file:///home/yeyu/yeyu_ws/src/yeyu_bringup/config/tb3_burger_picam2_640x480.yaml
+2026-08-14T16:02:21: [component_container-1] [WARN] [1786690941.158833554] [camera]: unknown control: NoiseReductionMode (39)
+2026-08-14T16:02:21: [INFO] [launch_ros.actions.load_composable_nodes]: Loaded node '/camera' in container '/camera_container'
+2026-08-14T16:06:47: [WARNING] [launch]: user interrupted with ctrl-c (SIGINT)
+2026-08-14T16:06:48: [component_container-1] [INFO] [1786691207.804026028] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+2026-08-14T16:06:48: [INFO] [component_container-1]: sending signal 'SIGINT' to process[component_container-1]
+2026-08-14T16:06:48: [component_container-1] [INFO] [1786691208.922624234] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+2026-08-14T16:06:49: [INFO] [component_container-1]: process has finished cleanly [pid 4981]

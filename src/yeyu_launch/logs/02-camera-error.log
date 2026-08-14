@@ -1,0 +1,15 @@
+2026-08-14T14:20:53: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/02_camera.sh: line 6: /home/yeyu/yeyu_ws/deploy/lib/wait_ros.sh: No such file or directory
+2026-08-14T14:20:53: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/02_camera.sh: line 7: source_ros_env: command not found
+2026-08-14T14:20:53: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/02_camera.sh: line 9: wait_for_topic: command not found
+2026-08-14T14:42:20: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/02_camera.sh: line 6: /home/yeyu/yeyu_ws/deploy/lib/wait_ros.sh: No such file or directory
+2026-08-14T14:42:20: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/02_camera.sh: line 7: source_ros_env: command not found
+2026-08-14T14:42:20: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/02_camera.sh: line 9: wait_for_topic: command not found
+2026-08-14T15:56:07: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/02_camera.sh: line 6: /home/yeyu/yeyu_ws/deploy/lib/wait_ros.sh: No such file or directory
+2026-08-14T15:56:07: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/02_camera.sh: line 7: source_ros_env: command not found
+2026-08-14T15:56:07: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/02_camera.sh: line 9: wait_for_topic: command not found
+2026-08-14T16:00:09: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/02_camera.sh: line 6: /home/yeyu/yeyu_ws/deploy/lib/wait_ros.sh: No such file or directory
+2026-08-14T16:00:09: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/02_camera.sh: line 7: source_ros_env: command not found
+2026-08-14T16:00:09: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/02_camera.sh: line 9: wait_for_topic: command not found
+2026-08-14T16:02:15: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/02_camera.sh: line 6: /home/yeyu/yeyu_ws/deploy/lib/wait_ros.sh: No such file or directory
+2026-08-14T16:02:15: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/02_camera.sh: line 7: source_ros_env: command not found
+2026-08-14T16:02:15: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/02_camera.sh: line 9: wait_for_topic: command not found

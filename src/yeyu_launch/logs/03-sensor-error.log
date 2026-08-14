@@ -1,0 +1,498 @@
+2026-08-14T14:20:54: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/03_sensor.sh: line 7: /home/yeyu/yeyu_ws/deploy/lib/wait_ros.sh: No such file or directory
+2026-08-14T14:20:54: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/03_sensor.sh: line 8: source_ros_env: command not found
+2026-08-14T14:20:54: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/03_sensor.sh: line 10: wait_for_device: command not found
+2026-08-14T14:20:58: [INFO] [1786684858.366638817] [arduino_sensor_bridge]: Opened serial port /dev/tb3_sensor at 115200 baud.
+2026-08-14T14:21:03: [WARN] [1786684863.363299371] [arduino_sensor_bridge]: Serial read failed: device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+2026-08-14T14:21:04: [WARN] [1786684864.376564510] [arduino_sensor_bridge]: Checksum mismatch. packet_id=0x31, rx=0xCC, calc=0x01
+2026-08-14T14:21:04: [WARN] [1786684864.626926107] [arduino_sensor_bridge]: Invalid payload length: 49
+2026-08-14T14:21:04: [WARN] [1786684864.735297794] [arduino_sensor_bridge]: Invalid payload length: 147
+2026-08-14T14:21:04: [WARN] [1786684864.928558999] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:21:05: [WARN] [1786684865.629016078] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:21:07: [WARN] [1786684867.547174944] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:21:07: [WARN] [1786684867.822699852] [arduino_sensor_bridge]: Serial read failed: device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+2026-08-14T14:21:08: [WARN] [1786684868.379196031] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:21:10: [WARN] [1786684870.075156231] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:21:11: [WARN] [1786684871.729891005] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:21:12: [WARN] [1786684872.944743699] [arduino_sensor_bridge]: Invalid payload length: 238
+2026-08-14T14:21:14: [WARN] [1786684874.892845982] [arduino_sensor_bridge]: Checksum mismatch. packet_id=0x31, rx=0xC7, calc=0xFC
+2026-08-14T14:21:15: [WARN] [1786684875.288789544] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:21:17: [WARN] [1786684877.689432434] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:21:17: [WARN] [1786684877.752311444] [arduino_sensor_bridge]: Invalid payload length: 49
+2026-08-14T14:21:18: [WARN] [1786684878.797959371] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:21:19: [WARN] [1786684879.333920000] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:21:19: [WARN] [1786684879.658193959] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:21:20: [WARN] [1786684880.749896219] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:21:22: [WARN] [1786684882.159025261] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:21:22: [WARN] [1786684882.964242869] [arduino_sensor_bridge]: Invalid payload length: 49
+2026-08-14T14:21:23: [WARN] [1786684883.054630119] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:21:25: [WARN] [1786684885.270972662] [arduino_sensor_bridge]: Invalid payload length: 49
+2026-08-14T14:21:27: [WARN] [1786684887.870099809] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:21:27: [WARN] [1786684887.958279869] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:21:35: [WARN] [1786684895.933032686] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:21:36: [WARN] [1786684896.032712500] [arduino_sensor_bridge]: Serial read failed: device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+2026-08-14T14:21:36: [WARN] [1786684896.688692043] [arduino_sensor_bridge]: Invalid payload length: 49
+2026-08-14T14:21:41: [WARN] [1786684901.343693693] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:21:43: [WARN] [1786684903.247297919] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:21:44: [WARN] [1786684904.205356929] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:21:44: [WARN] [1786684904.853298199] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:21:46: [WARN] [1786684906.303959845] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:21:46: [WARN] [1786684906.798671079] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:21:47: [WARN] [1786684907.004868937] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:21:48: [WARN] [1786684908.553584474] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:21:50: [WARN] [1786684910.256101406] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:21:50: [WARN] [1786684910.806703511] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:21:52: [WARN] [1786684912.669343726] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:21:53: [WARN] [1786684913.314853103] [arduino_sensor_bridge]: Checksum mismatch. packet_id=0x31, rx=0xED, calc=0x22
+2026-08-14T14:21:53: [WARN] [1786684913.960517682] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:21:55: [WARN] [1786684915.862598473] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:21:56: [WARN] [1786684916.728927749] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:21:57: [WARN] [1786684917.970804213] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:21:59: [WARN] [1786684919.233495034] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:22:00: [WARN] [1786684920.577157463] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:22:03: [WARN] [1786684923.178734966] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:22:03: [WARN] [1786684923.341997425] [arduino_sensor_bridge]: Invalid payload length: 49
+2026-08-14T14:22:05: [WARN] [1786684925.643719517] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:22:05: [WARN] [1786684925.892227262] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:22:08: [WARN] [1786684928.388632897] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:22:09: [WARN] [1786684929.093294240] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:22:11: [WARN] [1786684931.693184163] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:22:12: [WARN] [1786684932.959046889] [arduino_sensor_bridge]: Checksum mismatch. packet_id=0x32, rx=0xF7, calc=0xF4
+2026-08-14T14:22:15: [WARN] [1786684935.504269843] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:22:16: [WARN] [1786684936.763714181] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:22:20: [WARN] [1786684940.614791719] [arduino_sensor_bridge]: Checksum mismatch. packet_id=0x31, rx=0x66, calc=0x9B
+2026-08-14T14:22:20: [WARN] [1786684940.713873243] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:22:20: [WARN] [1786684940.974941114] [arduino_sensor_bridge]: Invalid payload length: 49
+2026-08-14T14:22:21: [WARN] [1786684941.678121401] [arduino_sensor_bridge]: Invalid payload length: 49
+2026-08-14T14:22:23: [WARN] [1786684943.219740606] [arduino_sensor_bridge]: Checksum mismatch. packet_id=0x31, rx=0xAA, calc=0xDF
+2026-08-14T14:22:26: [WARN] [1786684946.888361478] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:22:31: [WARN] [1786684951.377870557] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:22:33: [WARN] [1786684953.643047307] [arduino_sensor_bridge]: Checksum mismatch. packet_id=0x31, rx=0x48, calc=0x7D
+2026-08-14T14:22:34: [WARN] [1786684954.345982610] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:22:36: [WARN] [1786684956.897980360] [arduino_sensor_bridge]: Invalid payload length: 108
+2026-08-14T14:22:37: [WARN] [1786684957.108528038] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:22:38: [WARN] [1786684958.848646402] [arduino_sensor_bridge]: Checksum mismatch. packet_id=0x31, rx=0x97, calc=0xCC
+2026-08-14T14:22:46: [WARN] [1786684966.162902736] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:22:46: [WARN] [1786684966.863454145] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:22:48: [WARN] [1786684968.774167532] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:22:54: [WARN] [1786684974.289169973] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:22:55: [WARN] [1786684975.239005607] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:22:56: [WARN] [1786684976.643622051] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:22:57: [WARN] [1786684977.033839324] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:22:57: [WARN] [1786684977.443523956] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:23:00: [WARN] [1786684980.339023127] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:23:07: [WARN] [1786684987.380655764] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:23:10: [WARN] [1786684990.868027036] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:23:12: [WARN] [1786684992.617919762] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:23:12: [WARN] [1786684992.812866150] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:23:14: [WARN] [1786684994.338619626] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:23:14: [WARN] [1786684994.718039650] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:23:15: [WARN] [1786684995.423305238] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:23:16: [WARN] [1786684996.824351110] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:23:17: [WARN] [1786684997.483984749] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:23:21: [WARN] [1786685001.493639838] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:23:27: [WARN] [1786685007.308822304] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:23:27: [WARN] [1786685007.497698022] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:23:28: [WARN] [1786685008.008465305] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:23:28: [WARN] [1786685008.510031485] [arduino_sensor_bridge]: Serial read failed: device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+2026-08-14T14:23:30: [WARN] [1786685010.212551515] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:23:30: [WARN] [1786685010.914166467] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:23:33: [WARN] [1786685013.018610494] [arduino_sensor_bridge]: Invalid payload length: 49
+2026-08-14T14:23:41: [WARN] [1786685021.732459181] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:23:43: [WARN] [1786685023.489762919] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:23:48: [WARN] [1786685028.378665013] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:23:49: [WARN] [1786685029.187671744] [arduino_sensor_bridge]: Checksum mismatch. packet_id=0x31, rx=0x56, calc=0xDF
+2026-08-14T14:23:49: [WARN] [1786685029.998621853] [arduino_sensor_bridge]: Checksum mismatch. packet_id=0x31, rx=0x20, calc=0x55
+2026-08-14T14:23:55: [WARN] [1786685035.955770807] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:23:57: [WARN] [1786685037.563868282] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:23:57: [WARN] [1786685037.810125733] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:23:59: [WARN] [1786685039.557922749] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:24:00: [WARN] [1786685040.309204579] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:24:01: [WARN] [1786685041.414081662] [arduino_sensor_bridge]: Checksum mismatch. packet_id=0x31, rx=0x01, calc=0x8C
+2026-08-14T14:24:03: [WARN] [1786685043.624383394] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:24:05: [WARN] [1786685045.973559770] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:24:11: [WARN] [1786685051.083151739] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:24:13: [WARN] [1786685053.534719411] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:24:17: [WARN] [1786685057.247655187] [arduino_sensor_bridge]: Checksum mismatch. packet_id=0x31, rx=0x5D, calc=0x92
+2026-08-14T14:24:18: [WARN] [1786685058.108343709] [arduino_sensor_bridge]: Invalid payload length: 49
+2026-08-14T14:24:25: [WARN] [1786685065.018562452] [arduino_sensor_bridge]: Invalid payload length: 49
+2026-08-14T14:24:28: [WARN] [1786685068.863876619] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:24:31: [WARN] [1786685071.467688921] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:24:34: [WARN] [1786685074.079154588] [arduino_sensor_bridge]: Checksum mismatch. packet_id=0x31, rx=0x15, calc=0x4A
+2026-08-14T14:24:37: [WARN] [1786685077.743431912] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:24:40: [WARN] [1786685080.192754404] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:24:44: [WARN] [1786685084.058212246] [arduino_sensor_bridge]: Invalid payload length: 49
+2026-08-14T14:24:44: [WARN] [1786685084.339540852] [arduino_sensor_bridge]: Invalid payload length: 49
+2026-08-14T14:24:49: [WARN] [1786685089.268039098] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:24:51: [WARN] [1786685091.168866360] [arduino_sensor_bridge]: Invalid payload length: 49
+2026-08-14T14:24:54: [WARN] [1786685094.369088325] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:24:57: [WARN] [1786685097.077914011] [arduino_sensor_bridge]: Invalid payload length: 49
+2026-08-14T14:25:01: [WARN] [1786685101.539394425] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:25:02: [WARN] [1786685102.289054038] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:25:07: [WARN] [1786685107.342260937] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:25:09: [WARN] [1786685109.607175643] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:25:11: [WARN] [1786685111.848531126] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:25:12: [WARN] [1786685112.552713731] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:25:13: [WARN] [1786685113.463769832] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:25:13: [WARN] [1786685113.613155910] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:25:14: [WARN] [1786685114.415933262] [arduino_sensor_bridge]: Invalid payload length: 49
+2026-08-14T14:25:16: [WARN] [1786685116.057385945] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:25:16: [WARN] [1786685116.917855320] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:25:21: [WARN] [1786685121.338573089] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:25:25: [WARN] [1786685125.688791776] [arduino_sensor_bridge]: Checksum mismatch. packet_id=0x31, rx=0x12, calc=0x47
+2026-08-14T14:25:27: [WARN] [1786685127.288093824] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:25:31: [WARN] [1786685131.547864560] [arduino_sensor_bridge]: Invalid payload length: 198
+2026-08-14T14:25:32: [WARN] [1786685132.388160196] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:25:35: [WARN] [1786685135.153576013] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:25:35: [WARN] [1786685135.848830691] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:25:40: [WARN] [1786685140.063938508] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:25:41: [WARN] [1786685141.357424000] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:25:47: [WARN] [1786685147.730655454] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:25:52: [WARN] [1786685152.482862760] [arduino_sensor_bridge]: Checksum mismatch. packet_id=0x31, rx=0xE6, calc=0x1B
+2026-08-14T14:25:53: [WARN] [1786685153.280513140] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:25:53: [WARN] [1786685153.838009711] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:25:56: [WARN] [1786685156.438287815] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:25:59: [WARN] [1786685159.044749213] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:25:59: [WARN] [1786685159.743641775] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:26:02: [WARN] [1786685162.344173629] [arduino_sensor_bridge]: Checksum mismatch. packet_id=0x31, rx=0xD2, calc=0xD1
+2026-08-14T14:26:13: [WARN] [1786685173.333672864] [arduino_sensor_bridge]: Invalid payload length: 49
+2026-08-14T14:26:18: [WARN] [1786685178.179863238] [arduino_sensor_bridge]: Serial read failed: device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+2026-08-14T14:26:21: [WARN] [1786685181.843883739] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:26:21: [WARN] [1786685181.889273373] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:26:22: [WARN] [1786685182.749448974] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:26:28: [WARN] [1786685188.953704112] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:26:32: [WARN] [1786685192.713915231] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:26:33: [WARN] [1786685193.168535801] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:26:34: [WARN] [1786685194.413486627] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:26:35: [WARN] [1786685195.012618566] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:26:35: [WARN] [1786685195.920177785] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:26:38: [WARN] [1786685198.339111962] [arduino_sensor_bridge]: Invalid payload length: 49
+2026-08-14T14:26:40: [WARN] [1786685200.732671832] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:26:43: [WARN] [1786685203.278536563] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:26:43: [WARN] [1786685203.683865390] [arduino_sensor_bridge]: Serial read failed: device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+2026-08-14T14:26:44: [WARN] [1786685204.942518043] [arduino_sensor_bridge]: Invalid payload length: 237
+2026-08-14T14:26:45: [WARN] [1786685205.985771446] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:26:46: [WARN] [1786685206.699000522] [arduino_sensor_bridge]: Checksum mismatch. packet_id=0x31, rx=0x2C, calc=0x61
+2026-08-14T14:26:49: [WARN] [1786685209.144072669] [arduino_sensor_bridge]: Checksum mismatch. packet_id=0x31, rx=0xCD, calc=0x02
+2026-08-14T14:26:50: [WARN] [1786685210.793647769] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:26:51: [WARN] [1786685211.699428158] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:26:54: [WARN] [1786685214.612992085] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:26:57: [WARN] [1786685217.018153510] [arduino_sensor_bridge]: Invalid payload length: 49
+2026-08-14T14:26:57: [WARN] [1786685217.169946639] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:26:58: [WARN] [1786685218.268494245] [arduino_sensor_bridge]: Checksum mismatch. packet_id=0x31, rx=0x9D, calc=0xD2
+2026-08-14T14:26:58: [WARN] [1786685218.917898795] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:27:07: [WARN] [1786685227.530856985] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:27:08: [WARN] [1786685228.227880818] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:27:10: [WARN] [1786685230.043049034] [arduino_sensor_bridge]: Invalid payload length: 49
+2026-08-14T14:27:10: [WARN] [1786685230.442710386] [arduino_sensor_bridge]: Checksum mismatch. packet_id=0x31, rx=0x53, calc=0x51
+2026-08-14T14:27:12: [WARN] [1786685232.049975036] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:27:13: [WARN] [1786685233.300595799] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:27:13: [WARN] [1786685233.888102590] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:27:18: [WARN] [1786685238.960876543] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:27:21: [WARN] [1786685241.913671264] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:27:24: [WARN] [1786685244.065399029] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:27:24: [WARN] [1786685244.313903131] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:27:24: [WARN] [1786685244.508626189] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:27:27: [WARN] [1786685247.017159928] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:27:27: [WARN] [1786685247.114023196] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:27:27: [WARN] [1786685247.930622081] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:27:29: [WARN] [1786685249.136611008] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:27:30: [WARN] [1786685250.521841039] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:27:31: [WARN] [1786685251.984238985] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:27:32: [WARN] [1786685252.476546444] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:27:33: [WARN] [1786685253.236630066] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:27:34: [WARN] [1786685254.429092138] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:27:35: [WARN] [1786685255.495751544] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:27:38: [WARN] [1786685258.147639789] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:27:41: [WARN] [1786685261.792955444] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:27:42: [WARN] [1786685262.499447665] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:27:45: [WARN] [1786685265.519198508] [arduino_sensor_bridge]: Serial read failed: device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+2026-08-14T14:27:46: [WARN] [1786685266.818808449] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:27:47: [WARN] [1786685267.720100965] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:27:48: [WARN] [1786685268.923343371] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:27:50: [WARN] [1786685270.231399924] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:27:51: [WARN] [1786685271.324834126] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:27:51: [WARN] [1786685271.924808946] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:27:54: [WARN] [1786685274.685535192] [arduino_sensor_bridge]: Serial read failed: device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+2026-08-14T14:27:56: [WARN] [1786685276.385406448] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:27:58: [WARN] [1786685278.329065745] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:27:58: [WARN] [1786685278.737734641] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:28:01: [WARN] [1786685281.441745789] [arduino_sensor_bridge]: Checksum mismatch. packet_id=0x31, rx=0x0E, calc=0x43
+2026-08-14T14:28:03: [WARN] [1786685283.788024126] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:28:06: [WARN] [1786685286.093652553] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:28:09: [WARN] [1786685289.447958756] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:28:11: [WARN] [1786685291.054959309] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:28:11: [WARN] [1786685291.339718733] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:28:12: [WARN] [1786685292.007412236] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:28:22: [WARN] [1786685302.881776734] [arduino_sensor_bridge]: Serial read failed: device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+2026-08-14T14:28:25: [WARN] [1786685305.135026881] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:28:25: [WARN] [1786685305.430221758] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:28:26: [WARN] [1786685306.694997597] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:28:27: [WARN] [1786685307.137927790] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:28:33: [WARN] [1786685313.402404037] [arduino_sensor_bridge]: Checksum mismatch. packet_id=0x31, rx=0x70, calc=0xA5
+2026-08-14T14:28:34: [WARN] [1786685314.601176125] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:28:37: [WARN] [1786685317.605551491] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:28:38: [WARN] [1786685318.767191191] [arduino_sensor_bridge]: Serial read failed: device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+2026-08-14T14:28:39: [WARN] [1786685319.358595336] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:28:39: [WARN] [1786685319.424553177] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:28:40: [WARN] [1786685320.670928196] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:28:41: [WARN] [1786685321.424480180] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:28:45: [WARN] [1786685325.579613846] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:28:47: [WARN] [1786685327.723788973] [arduino_sensor_bridge]: Serial read failed: device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+2026-08-14T14:28:48: [WARN] [1786685328.580779455] [arduino_sensor_bridge]: Invalid payload length: 201
+2026-08-14T14:28:51: [WARN] [1786685331.179534447] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:28:52: [WARN] [1786685332.587761621] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:28:54: [WARN] [1786685334.989937733] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:28:56: [WARN] [1786685336.952725064] [arduino_sensor_bridge]: Serial read failed: device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+2026-08-14T14:28:57: [WARN] [1786685337.002265356] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:29:00: [WARN] [1786685340.198462560] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:29:03: [WARN] [1786685343.603860652] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:29:03: [WARN] [1786685343.764923914] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:29:05: [WARN] [1786685345.878995299] [arduino_sensor_bridge]: Invalid payload length: 255
+2026-08-14T14:29:12: [WARN] [1786685352.429801140] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:29:13: [WARN] [1786685353.724882323] [arduino_sensor_bridge]: Invalid payload length: 49
+2026-08-14T14:29:15: [WARN] [1786685355.681579904] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:29:16: [WARN] [1786685356.792216657] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:29:17: [WARN] [1786685357.835648273] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:29:19: [WARN] [1786685359.397898286] [arduino_sensor_bridge]: Checksum mismatch. packet_id=0x31, rx=0x53, calc=0x88
+2026-08-14T14:29:20: [WARN] [1786685360.449606851] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:29:21: [WARN] [1786685361.138928331] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:29:22: [WARN] [1786685362.503598409] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:29:22: [WARN] [1786685362.902996992] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:29:24: [WARN] [1786685364.335802488] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:29:25: [WARN] [1786685365.902221251] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:29:26: [WARN] [1786685366.923743620] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:29:28: [WARN] [1786685368.928166106] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:29:32: [WARN] [1786685372.215845113] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:29:33: [WARN] [1786685373.575103379] [arduino_sensor_bridge]: Invalid payload length: 238
+2026-08-14T14:29:37: [WARN] [1786685377.343906234] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:29:38: [WARN] [1786685378.124849722] [arduino_sensor_bridge]: Checksum mismatch. packet_id=0x31, rx=0x0F, calc=0x44
+2026-08-14T14:29:39: [WARN] [1786685379.827128176] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:29:40: [WARN] [1786685380.149400103] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:29:42: [WARN] [1786685382.654432029] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:29:44: [WARN] [1786685384.599895284] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:29:51: [WARN] [1786685391.798757590] [arduino_sensor_bridge]: Checksum mismatch. packet_id=0x31, rx=0xB2, calc=0xE7
+2026-08-14T14:29:55: [WARN] [1786685395.006553394] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:29:55: [WARN] [1786685395.103919539] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:29:56: [WARN] [1786685396.927742934] [arduino_sensor_bridge]: Checksum mismatch. packet_id=0x31, rx=0x77, calc=0xAC
+2026-08-14T14:29:58: [WARN] [1786685398.208772019] [arduino_sensor_bridge]: Checksum mismatch. packet_id=0x31, rx=0x61, calc=0x96
+2026-08-14T14:30:00: [WARN] [1786685400.819363013] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:30:02: [WARN] [1786685402.923329078] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:30:04: [WARN] [1786685404.692279463] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:30:05: [WARN] [1786685405.395837870] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:30:07: [WARN] [1786685407.137575498] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:30:07: [WARN] [1786685407.430568734] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:30:08: [WARN] [1786685408.362442351] [arduino_sensor_bridge]: Serial read failed: device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+2026-08-14T14:30:10: [WARN] [1786685410.286955929] [arduino_sensor_bridge]: Serial read failed: device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+2026-08-14T14:30:15: [WARN] [1786685415.898075363] [arduino_sensor_bridge]: Checksum mismatch. packet_id=0x31, rx=0xE1, calc=0x16
+2026-08-14T14:30:17: [WARN] [1786685417.913624512] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:30:19: [WARN] [1786685419.816058011] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:30:19: [WARN] [1786685419.914353290] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:30:20: [WARN] [1786685420.555799260] [arduino_sensor_bridge]: Serial read failed: device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+2026-08-14T14:30:21: [WARN] [1786685421.219301101] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:30:21: [WARN] [1786685421.871606333] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:30:24: [WARN] [1786685424.327554717] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:30:25: [WARN] [1786685425.024307483] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:30:26: [WARN] [1786685426.138529943] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:30:26: [WARN] [1786685426.380312635] [arduino_sensor_bridge]: Invalid payload length: 49
+2026-08-14T14:30:27: [WARN] [1786685427.278912897] [arduino_sensor_bridge]: Serial read failed: device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+2026-08-14T14:30:27: [WARN] [1786685427.476272332] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:30:28: [WARN] [1786685428.477176943] [arduino_sensor_bridge]: Serial read failed: device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+2026-08-14T14:30:30: [WARN] [1786685430.275762020] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:30:32: [WARN] [1786685432.954207567] [arduino_sensor_bridge]: Invalid payload length: 49
+2026-08-14T14:30:34: [WARN] [1786685434.990691800] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:30:37: [WARN] [1786685437.745746968] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:30:38: [WARN] [1786685438.050775670] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:30:40: [WARN] [1786685440.069636019] [arduino_sensor_bridge]: Invalid payload length: 49
+2026-08-14T14:30:43: [WARN] [1786685443.178708869] [arduino_sensor_bridge]: Serial read failed: device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+2026-08-14T14:30:43: [WARN] [1786685443.404817537] [arduino_sensor_bridge]: Invalid payload length: 255
+2026-08-14T14:30:43: [WARN] [1786685443.975945008] [arduino_sensor_bridge]: Serial read failed: device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+2026-08-14T14:30:44: [WARN] [1786685444.755781427] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:30:45: [WARN] [1786685445.109903129] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:30:48: [WARN] [1786685448.010083031] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:30:48: [WARN] [1786685448.313043985] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:30:49: [WARN] [1786685449.979369197] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:30:52: [WARN] [1786685452.495799914] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:30:53: [WARN] [1786685453.074361735] [arduino_sensor_bridge]: Serial read failed: device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+2026-08-14T14:30:53: [WARN] [1786685453.425092117] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:30:53: [WARN] [1786685453.846635951] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:30:55: [WARN] [1786685455.600724024] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:30:56: [WARN] [1786685456.599051204] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:30:58: [WARN] [1786685458.202481434] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:30:58: [WARN] [1786685458.702777711] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:30:59: [WARN] [1786685459.035112926] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:31:01: [WARN] [1786685461.190095975] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:31:03: [WARN] [1786685463.298698499] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:31:05: [WARN] [1786685465.551276075] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:31:06: [WARN] [1786685466.333393419] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:31:07: [WARN] [1786685467.382399371] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:31:08: [WARN] [1786685468.204199376] [arduino_sensor_bridge]: Serial read failed: device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+2026-08-14T14:31:10: [WARN] [1786685470.162169019] [arduino_sensor_bridge]: Serial read failed: device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+2026-08-14T14:31:10: [WARN] [1786685470.861831698] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:31:11: [WARN] [1786685471.210336298] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:31:15: [WARN] [1786685475.939705082] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:31:17: [WARN] [1786685477.339971127] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:31:18: [WARN] [1786685478.518596087] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:31:19: [WARN] [1786685479.223534870] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:31:26: [WARN] [1786685486.990322218] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:31:27: [WARN] [1786685487.088648144] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:31:33: [WARN] [1786685493.072160139] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:31:34: [WARN] [1786685494.575171816] [arduino_sensor_bridge]: Invalid payload length: 49
+2026-08-14T14:31:35: [WARN] [1786685495.176528992] [arduino_sensor_bridge]: Serial read failed: device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+2026-08-14T14:31:36: [WARN] [1786685496.483761601] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:31:38: [WARN] [1786685498.385797522] [arduino_sensor_bridge]: Serial read failed: device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+2026-08-14T14:31:38: [WARN] [1786685498.664145326] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:31:40: [WARN] [1786685500.174676426] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:31:40: [WARN] [1786685500.716044764] [arduino_sensor_bridge]: Checksum mismatch. packet_id=0x31, rx=0x46, calc=0x7B
+2026-08-14T14:31:42: [WARN] [1786685502.775747733] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:31:43: [WARN] [1786685503.527022907] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:31:46: [WARN] [1786685506.128210303] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:31:46: [WARN] [1786685506.775340973] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:31:49: [WARN] [1786685509.696841890] [arduino_sensor_bridge]: Invalid payload length: 49
+2026-08-14T14:31:52: [WARN] [1786685512.149734649] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:31:52: [WARN] [1786685512.593447367] [arduino_sensor_bridge]: Checksum mismatch. packet_id=0x31, rx=0xBD, calc=0xF2
+2026-08-14T14:31:52: [WARN] [1786685512.656160551] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:31:54: [WARN] [1786685514.201116905] [arduino_sensor_bridge]: Serial read failed: device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+2026-08-14T14:31:55: [WARN] [1786685515.843978283] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:31:56: [WARN] [1786685516.352673354] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:31:57: [WARN] [1786685517.019872165] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:32:00: [WARN] [1786685520.803711333] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:32:01: [WARN] [1786685521.388397573] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:32:03: [WARN] [1786685523.776163013] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:32:03: [WARN] [1786685523.915186546] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:32:09: [WARN] [1786685529.149046974] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:32:09: [WARN] [1786685529.472132342] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:32:09: [WARN] [1786685529.645357841] [arduino_sensor_bridge]: Serial read failed: device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+2026-08-14T14:32:10: [WARN] [1786685530.750350363] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:32:13: [WARN] [1786685533.931161599] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:32:14: [WARN] [1786685534.428893870] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:32:15: [WARN] [1786685535.636077406] [arduino_sensor_bridge]: Serial read failed: device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+2026-08-14T14:32:19: [WARN] [1786685539.465240101] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:32:20: [WARN] [1786685540.848703143] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:32:21: [WARN] [1786685541.296848088] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:32:21: [WARN] [1786685541.358854172] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:32:21: [WARN] [1786685541.896936501] [arduino_sensor_bridge]: Serial read failed: device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+2026-08-14T14:32:23: [WARN] [1786685543.393996866] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:32:24: [WARN] [1786685544.976984528] [arduino_sensor_bridge]: Invalid payload length: 49
+2026-08-14T14:32:25: [WARN] [1786685545.300472464] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:32:33: [WARN] [1786685553.021519135] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:32:33: [WARN] [1786685553.797857165] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:32:34: [WARN] [1786685554.496934176] [arduino_sensor_bridge]: Serial read failed: device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+2026-08-14T14:32:34: [WARN] [1786685554.593897843] [arduino_sensor_bridge]: Invalid payload length: 49
+2026-08-14T14:32:37: [WARN] [1786685557.401353161] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:32:43: [WARN] [1786685563.388189072] [arduino_sensor_bridge]: Checksum mismatch. packet_id=0x31, rx=0x14, calc=0x49
+2026-08-14T14:32:44: [WARN] [1786685564.394995532] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:32:47: [WARN] [1786685567.254778037] [arduino_sensor_bridge]: Checksum mismatch. packet_id=0x31, rx=0xFB, calc=0x30
+2026-08-14T14:32:50: [WARN] [1786685570.052693827] [arduino_sensor_bridge]: Serial read failed: device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+2026-08-14T14:32:50: [WARN] [1786685570.128232910] [arduino_sensor_bridge]: Invalid payload length: 49
+2026-08-14T14:32:50: [WARN] [1786685570.551971313] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:32:53: [WARN] [1786685573.710669417] [arduino_sensor_bridge]: Serial read failed: device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+2026-08-14T14:32:56: [WARN] [1786685576.227651684] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:32:56: [WARN] [1786685576.338292311] [arduino_sensor_bridge]: Serial read failed: device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+2026-08-14T14:32:57: [WARN] [1786685577.737191871] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:32:58: [WARN] [1786685578.950287716] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:32:59: [WARN] [1786685579.454214854] [arduino_sensor_bridge]: Serial read failed: device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+2026-08-14T14:33:00: [WARN] [1786685580.282769927] [arduino_sensor_bridge]: Checksum mismatch. packet_id=0x31, rx=0x3B, calc=0x70
+2026-08-14T14:33:01: [WARN] [1786685581.846093542] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:33:01: [WARN] [1786685581.951266622] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:33:07: [WARN] [1786685587.360761888] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:33:08: [WARN] [1786685588.158798235] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:33:09: [WARN] [1786685589.605873807] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:33:10: [WARN] [1786685590.161036356] [arduino_sensor_bridge]: Serial read failed: device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+2026-08-14T14:33:10: [WARN] [1786685590.610261429] [arduino_sensor_bridge]: Checksum mismatch. packet_id=0x32, rx=0x3E, calc=0x3C
+2026-08-14T14:33:12: [WARN] [1786685592.019032819] [arduino_sensor_bridge]: Checksum mismatch. packet_id=0x31, rx=0x6A, calc=0x9F
+2026-08-14T14:33:12: [WARN] [1786685592.557104700] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:33:13: [WARN] [1786685593.786765125] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:33:13: [WARN] [1786685593.852138954] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:33:14: [WARN] [1786685594.148745793] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:33:15: [WARN] [1786685595.658037017] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:33:19: [WARN] [1786685599.311458866] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:33:20: [WARN] [1786685600.585543286] [arduino_sensor_bridge]: Invalid payload length: 49
+2026-08-14T14:33:21: [WARN] [1786685601.372966607] [arduino_sensor_bridge]: Invalid payload length: 165
+2026-08-14T14:33:21: [WARN] [1786685601.686195250] [arduino_sensor_bridge]: Invalid payload length: 49
+2026-08-14T14:33:24: [WARN] [1786685604.895522742] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:33:25: [WARN] [1786685605.138470706] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:33:26: [WARN] [1786685606.972155235] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:33:28: [WARN] [1786685608.797874755] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:33:30: [WARN] [1786685610.446171767] [arduino_sensor_bridge]: Serial read failed: device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+2026-08-14T14:33:31: [WARN] [1786685611.705710831] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T14:33:31: [WARN] [1786685611.780290817] [arduino_sensor_bridge]: Invalid payload length: 50
+2026-08-14T14:33:35: [WARN] [1786685615.213822013] [arduino_sensor_bridge]: Invalid payload length: 49
+2026-08-14T14:33:38: Traceback (most recent call last):
+2026-08-14T14:33:38:   File "/home/yeyu/yeyu_ws/install/yeyu_control/lib/yeyu_control/arduino_bridge_node_serial", line 33, in <module>
+2026-08-14T14:33:38:     sys.exit(load_entry_point('yeyu-control==0.0.0', 'console_scripts', 'arduino_bridge_node_serial')())
+2026-08-14T14:33:38:   File "/home/yeyu/yeyu_ws/install/yeyu_control/lib/python3.10/site-packages/yeyu_control/arduino_bridge_node_serial.py", line 354, in main
+2026-08-14T14:33:38:     rclpy.shutdown()
+2026-08-14T14:33:38:   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/__init__.py", line 130, in shutdown
+2026-08-14T14:33:38:     _shutdown(context=context)
+2026-08-14T14:33:38:   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/utilities.py", line 58, in shutdown
+2026-08-14T14:33:38:     return context.shutdown()
+2026-08-14T14:33:38:   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/context.py", line 102, in shutdown
+2026-08-14T14:33:38:     self.__context.shutdown()
+2026-08-14T14:33:38: rclpy._rclpy_pybind11.RCLError: failed to shutdown: rcl_shutdown already called on the given context, at ./src/rcl/init.c:241
+2026-08-14T14:42:20: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/03_sensor.sh: line 7: /home/yeyu/yeyu_ws/deploy/lib/wait_ros.sh: No such file or directory
+2026-08-14T14:42:20: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/03_sensor.sh: line 8: source_ros_env: command not found
+2026-08-14T14:42:20: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/03_sensor.sh: line 10: wait_for_device: command not found
+2026-08-14T14:42:24: [INFO] [1786686144.009886837] [arduino_sensor_bridge]: Opened serial port /dev/tb3_sensor at 115200 baud.
+2026-08-14T14:42:59: Traceback (most recent call last):
+2026-08-14T14:42:59:   File "/home/yeyu/yeyu_ws/install/yeyu_control/lib/yeyu_control/arduino_bridge_node_serial", line 33, in <module>
+2026-08-14T14:42:59:     sys.exit(load_entry_point('yeyu-control==0.0.0', 'console_scripts', 'arduino_bridge_node_serial')())
+2026-08-14T14:42:59:   File "/home/yeyu/yeyu_ws/install/yeyu_control/lib/python3.10/site-packages/yeyu_control/arduino_bridge_node_serial.py", line 354, in main
+2026-08-14T14:42:59:     rclpy.shutdown()
+2026-08-14T14:42:59:   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/__init__.py", line 130, in shutdown
+2026-08-14T14:42:59:     _shutdown(context=context)
+2026-08-14T14:42:59:   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/utilities.py", line 58, in shutdown
+2026-08-14T14:42:59:     return context.shutdown()
+2026-08-14T14:42:59:   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/context.py", line 102, in shutdown
+2026-08-14T14:42:59:     self.__context.shutdown()
+2026-08-14T14:42:59: rclpy._rclpy_pybind11.RCLError: failed to shutdown: rcl_shutdown already called on the given context, at ./src/rcl/init.c:241
+2026-08-14T15:56:07: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/03_sensor.sh: line 7: /home/yeyu/yeyu_ws/deploy/lib/wait_ros.sh: No such file or directory
+2026-08-14T15:56:07: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/03_sensor.sh: line 8: source_ros_env: command not found
+2026-08-14T15:56:07: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/03_sensor.sh: line 10: wait_for_device: command not found
+2026-08-14T15:56:14: [INFO] [1786690574.179427235] [arduino_sensor_bridge]: Opened serial port /dev/tb3_sensor at 115200 baud.
+2026-08-14T15:56:14: [WARN] [1786690574.442862619] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T15:56:16: [WARN] [1786690576.396332239] [arduino_sensor_bridge]: Serial read failed: device reports readiness to read but returned no data (device disconnected or multiple access on port?)
+2026-08-14T15:56:18: [WARN] [1786690578.294747297] [arduino_sensor_bridge]: Invalid payload length: 170
+2026-08-14T15:59:48: Traceback (most recent call last):
+2026-08-14T15:59:48:   File "/home/yeyu/yeyu_ws/install/yeyu_control/lib/yeyu_control/arduino_bridge_node_serial", line 33, in <module>
+2026-08-14T15:59:48:     sys.exit(load_entry_point('yeyu-control==0.0.0', 'console_scripts', 'arduino_bridge_node_serial')())
+2026-08-14T15:59:48:   File "/home/yeyu/yeyu_ws/install/yeyu_control/lib/python3.10/site-packages/yeyu_control/arduino_bridge_node_serial.py", line 354, in main
+2026-08-14T15:59:48:     rclpy.shutdown()
+2026-08-14T15:59:48:   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/__init__.py", line 130, in shutdown
+2026-08-14T15:59:48:     _shutdown(context=context)
+2026-08-14T15:59:48:   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/utilities.py", line 58, in shutdown
+2026-08-14T15:59:48:     return context.shutdown()
+2026-08-14T15:59:48:   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/context.py", line 102, in shutdown
+2026-08-14T15:59:48:     self.__context.shutdown()
+2026-08-14T15:59:48: rclpy._rclpy_pybind11.RCLError: failed to shutdown: rcl_shutdown already called on the given context, at ./src/rcl/init.c:241
+2026-08-14T16:00:09: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/03_sensor.sh: line 7: /home/yeyu/yeyu_ws/deploy/lib/wait_ros.sh: No such file or directory
+2026-08-14T16:00:09: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/03_sensor.sh: line 8: source_ros_env: command not found
+2026-08-14T16:00:09: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/03_sensor.sh: line 10: wait_for_device: command not found
+2026-08-14T16:00:12: [INFO] [1786690812.906933869] [arduino_sensor_bridge]: Opened serial port /dev/tb3_sensor at 115200 baud.
+2026-08-14T16:01:12: Traceback (most recent call last):
+2026-08-14T16:01:12:   File "/home/yeyu/yeyu_ws/install/yeyu_control/lib/yeyu_control/arduino_bridge_node_serial", line 33, in <module>
+2026-08-14T16:01:12:     sys.exit(load_entry_point('yeyu-control==0.0.0', 'console_scripts', 'arduino_bridge_node_serial')())
+2026-08-14T16:01:12:   File "/home/yeyu/yeyu_ws/install/yeyu_control/lib/python3.10/site-packages/yeyu_control/arduino_bridge_node_serial.py", line 354, in main
+2026-08-14T16:01:12:     rclpy.shutdown()
+2026-08-14T16:01:12:   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/__init__.py", line 130, in shutdown
+2026-08-14T16:01:12:     _shutdown(context=context)
+2026-08-14T16:01:12:   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/utilities.py", line 58, in shutdown
+2026-08-14T16:01:12:     return context.shutdown()
+2026-08-14T16:01:12:   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/context.py", line 102, in shutdown
+2026-08-14T16:01:12:     self.__context.shutdown()
+2026-08-14T16:01:12: rclpy._rclpy_pybind11.RCLError: failed to shutdown: rcl_shutdown already called on the given context, at ./src/rcl/init.c:241
+2026-08-14T16:02:15: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/03_sensor.sh: line 7: /home/yeyu/yeyu_ws/deploy/lib/wait_ros.sh: No such file or directory
+2026-08-14T16:02:15: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/03_sensor.sh: line 8: source_ros_env: command not found
+2026-08-14T16:02:15: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/03_sensor.sh: line 10: wait_for_device: command not found
+2026-08-14T16:02:21: [INFO] [1786690941.212200814] [arduino_sensor_bridge]: Opened serial port /dev/tb3_sensor at 115200 baud.
+2026-08-14T16:06:50: Traceback (most recent call last):
+2026-08-14T16:06:50:   File "/home/yeyu/yeyu_ws/install/yeyu_control/lib/yeyu_control/arduino_bridge_node_serial", line 33, in <module>
+2026-08-14T16:06:50:     sys.exit(load_entry_point('yeyu-control==0.0.0', 'console_scripts', 'arduino_bridge_node_serial')())
+2026-08-14T16:06:50:   File "/home/yeyu/yeyu_ws/install/yeyu_control/lib/python3.10/site-packages/yeyu_control/arduino_bridge_node_serial.py", line 354, in main
+2026-08-14T16:06:50:     rclpy.shutdown()
+2026-08-14T16:06:50:   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/__init__.py", line 130, in shutdown
+2026-08-14T16:06:50:     _shutdown(context=context)
+2026-08-14T16:06:50:   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/utilities.py", line 58, in shutdown
+2026-08-14T16:06:50:     return context.shutdown()
+2026-08-14T16:06:50:   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/context.py", line 102, in shutdown
+2026-08-14T16:06:50:     self.__context.shutdown()
+2026-08-14T16:06:50: rclpy._rclpy_pybind11.RCLError: failed to shutdown: rcl_shutdown already called on the given context, at ./src/rcl/init.c:241

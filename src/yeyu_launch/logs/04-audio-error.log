@@ -1,0 +1,106 @@
+2026-08-14T14:20:54: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/04_audio.sh: line 7: /home/yeyu/yeyu_ws/deploy/lib/wait_ros.sh: No such file or directory
+2026-08-14T14:20:54: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/04_audio.sh: line 8: source_ros_env: command not found
+2026-08-14T14:20:58: [INFO] [1786684858.520349480] [audio_output_node]: Audio output node started
+2026-08-14T14:20:58: [INFO] [1786684858.526719737] [audio_output_node]: Subscribe topic:/audio/command
+2026-08-14T14:20:58: [INFO] [1786684858.535283647] [audio_output_node]: Sound directory: /home/yeyu/turtlebot3_ws/install/robot_audio_output/share/robot_audio_output/sounds
+2026-08-14T14:20:58: [INFO] [1786684858.539116979] [audio_output_node]: Sound directory: /home/yeyu/turtlebot3_ws/install/robot_audio_output/share/robot_audio_output/sounds
+2026-08-14T14:20:58: [INFO] [1786684858.551785291] [audio_output_node]: TTS engine: gTTS
+2026-08-14T14:20:58: [INFO] [1786684858.558890093] [audio_output_node]: Audio player: mpg123
+2026-08-14T14:21:06: [INFO] [1786684866.830695529] [audio_output_node]: TTS: 주행을 시작합니다.
+2026-08-14T14:33:39: Traceback (most recent call last):
+2026-08-14T14:33:39:   File "/home/yeyu/yeyu_ws/install/yeyu_control/lib/yeyu_control/audio_output_node", line 33, in <module>
+2026-08-14T14:33:39:     sys.exit(load_entry_point('yeyu-control==0.0.0', 'console_scripts', 'audio_output_node')())
+2026-08-14T14:33:39:   File "/home/yeyu/yeyu_ws/install/yeyu_control/lib/python3.10/site-packages/yeyu_control/audio_output_node.py", line 249, in main
+2026-08-14T14:33:39:     rclpy.shutdown()
+2026-08-14T14:33:39:   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/__init__.py", line 130, in shutdown
+2026-08-14T14:33:39:     _shutdown(context=context)
+2026-08-14T14:33:39:   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/utilities.py", line 58, in shutdown
+2026-08-14T14:33:39:     return context.shutdown()
+2026-08-14T14:33:39:   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/context.py", line 102, in shutdown
+2026-08-14T14:33:39:     self.__context.shutdown()
+2026-08-14T14:33:39: rclpy._rclpy_pybind11.RCLError: failed to shutdown: rcl_shutdown already called on the given context, at ./src/rcl/init.c:241
+2026-08-14T14:42:20: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/04_audio.sh: line 7: /home/yeyu/yeyu_ws/deploy/lib/wait_ros.sh: No such file or directory
+2026-08-14T14:42:20: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/04_audio.sh: line 8: source_ros_env: command not found
+2026-08-14T14:42:24: [INFO] [1786686144.854060834] [audio_output_node]: Audio output node started
+2026-08-14T14:42:24: [INFO] [1786686144.862656555] [audio_output_node]: Subscribe topic:/audio/command
+2026-08-14T14:42:24: [INFO] [1786686144.866407443] [audio_output_node]: Sound directory: /home/yeyu/turtlebot3_ws/install/robot_audio_output/share/robot_audio_output/sounds
+2026-08-14T14:42:24: [INFO] [1786686144.871859342] [audio_output_node]: Sound directory: /home/yeyu/turtlebot3_ws/install/robot_audio_output/share/robot_audio_output/sounds
+2026-08-14T14:42:24: [INFO] [1786686144.877037597] [audio_output_node]: TTS engine: gTTS
+2026-08-14T14:42:24: [INFO] [1786686144.882308573] [audio_output_node]: Audio player: mpg123
+2026-08-14T14:42:27: [INFO] [1786686147.720640803] [audio_output_node]: TTS: 주행을 시작합니다.
+2026-08-14T14:43:00: Traceback (most recent call last):
+2026-08-14T14:43:00:   File "/home/yeyu/yeyu_ws/install/yeyu_control/lib/yeyu_control/audio_output_node", line 33, in <module>
+2026-08-14T14:43:00:     sys.exit(load_entry_point('yeyu-control==0.0.0', 'console_scripts', 'audio_output_node')())
+2026-08-14T14:43:00:   File "/home/yeyu/yeyu_ws/install/yeyu_control/lib/python3.10/site-packages/yeyu_control/audio_output_node.py", line 249, in main
+2026-08-14T14:43:00:     rclpy.shutdown()
+2026-08-14T14:43:00:   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/__init__.py", line 130, in shutdown
+2026-08-14T14:43:00:     _shutdown(context=context)
+2026-08-14T14:43:00:   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/utilities.py", line 58, in shutdown
+2026-08-14T14:43:00:     return context.shutdown()
+2026-08-14T14:43:00:   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/context.py", line 102, in shutdown
+2026-08-14T14:43:00:     self.__context.shutdown()
+2026-08-14T14:43:00: rclpy._rclpy_pybind11.RCLError: failed to shutdown: rcl_shutdown already called on the given context, at ./src/rcl/init.c:241
+2026-08-14T15:56:07: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/04_audio.sh: line 7: /home/yeyu/yeyu_ws/deploy/lib/wait_ros.sh: No such file or directory
+2026-08-14T15:56:07: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/04_audio.sh: line 8: source_ros_env: command not found
+2026-08-14T15:56:13: [INFO] [1786690573.877787059] [audio_output_node]: Audio output node started
+2026-08-14T15:56:13: [INFO] [1786690573.880892916] [audio_output_node]: Subscribe topic:/audio/command
+2026-08-14T15:56:13: [INFO] [1786690573.884020956] [audio_output_node]: Sound directory: /home/yeyu/turtlebot3_ws/install/robot_audio_output/share/robot_audio_output/sounds
+2026-08-14T15:56:13: [INFO] [1786690573.888173084] [audio_output_node]: Sound directory: /home/yeyu/turtlebot3_ws/install/robot_audio_output/share/robot_audio_output/sounds
+2026-08-14T15:56:13: [INFO] [1786690573.891580571] [audio_output_node]: TTS engine: gTTS
+2026-08-14T15:56:13: [INFO] [1786690573.894734332] [audio_output_node]: Audio player: mpg123
+2026-08-14T15:56:20: [INFO] [1786690580.960721455] [audio_output_node]: TTS: 주행을 시작합니다.
+2026-08-14T15:56:35: [ERROR] [1786690595.049585203] [audio_output_node]: gTTS error: Failed to connect. Probable cause: Unknown
+2026-08-14T15:59:49: Traceback (most recent call last):
+2026-08-14T15:59:49:   File "/home/yeyu/yeyu_ws/install/yeyu_control/lib/yeyu_control/audio_output_node", line 33, in <module>
+2026-08-14T15:59:49:     sys.exit(load_entry_point('yeyu-control==0.0.0', 'console_scripts', 'audio_output_node')())
+2026-08-14T15:59:49:   File "/home/yeyu/yeyu_ws/install/yeyu_control/lib/python3.10/site-packages/yeyu_control/audio_output_node.py", line 249, in main
+2026-08-14T15:59:49:     rclpy.shutdown()
+2026-08-14T15:59:49:   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/__init__.py", line 130, in shutdown
+2026-08-14T15:59:49:     _shutdown(context=context)
+2026-08-14T15:59:49:   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/utilities.py", line 58, in shutdown
+2026-08-14T15:59:49:     return context.shutdown()
+2026-08-14T15:59:49:   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/context.py", line 102, in shutdown
+2026-08-14T15:59:49:     self.__context.shutdown()
+2026-08-14T15:59:49: rclpy._rclpy_pybind11.RCLError: failed to shutdown: rcl_shutdown already called on the given context, at ./src/rcl/init.c:241
+2026-08-14T16:00:09: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/04_audio.sh: line 7: /home/yeyu/yeyu_ws/deploy/lib/wait_ros.sh: No such file or directory
+2026-08-14T16:00:09: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/04_audio.sh: line 8: source_ros_env: command not found
+2026-08-14T16:00:13: [INFO] [1786690813.362425517] [audio_output_node]: Audio output node started
+2026-08-14T16:00:13: [INFO] [1786690813.368297353] [audio_output_node]: Subscribe topic:/audio/command
+2026-08-14T16:00:13: [INFO] [1786690813.373741257] [audio_output_node]: Sound directory: /home/yeyu/turtlebot3_ws/install/robot_audio_output/share/robot_audio_output/sounds
+2026-08-14T16:00:13: [INFO] [1786690813.380033098] [audio_output_node]: Sound directory: /home/yeyu/turtlebot3_ws/install/robot_audio_output/share/robot_audio_output/sounds
+2026-08-14T16:00:13: [INFO] [1786690813.385350543] [audio_output_node]: TTS engine: gTTS
+2026-08-14T16:00:13: [INFO] [1786690813.390435829] [audio_output_node]: Audio player: mpg123
+2026-08-14T16:00:16: [INFO] [1786690816.896160755] [audio_output_node]: TTS: 주행을 시작합니다.
+2026-08-14T16:01:12: Traceback (most recent call last):
+2026-08-14T16:01:12:   File "/home/yeyu/yeyu_ws/install/yeyu_control/lib/yeyu_control/audio_output_node", line 33, in <module>
+2026-08-14T16:01:12:     sys.exit(load_entry_point('yeyu-control==0.0.0', 'console_scripts', 'audio_output_node')())
+2026-08-14T16:01:12:   File "/home/yeyu/yeyu_ws/install/yeyu_control/lib/python3.10/site-packages/yeyu_control/audio_output_node.py", line 249, in main
+2026-08-14T16:01:12:     rclpy.shutdown()
+2026-08-14T16:01:12:   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/__init__.py", line 130, in shutdown
+2026-08-14T16:01:12:     _shutdown(context=context)
+2026-08-14T16:01:12:   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/utilities.py", line 58, in shutdown
+2026-08-14T16:01:12:     return context.shutdown()
+2026-08-14T16:01:12:   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/context.py", line 102, in shutdown
+2026-08-14T16:01:12:     self.__context.shutdown()
+2026-08-14T16:01:12: rclpy._rclpy_pybind11.RCLError: failed to shutdown: rcl_shutdown already called on the given context, at ./src/rcl/init.c:241
+2026-08-14T16:02:15: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/04_audio.sh: line 7: /home/yeyu/yeyu_ws/deploy/lib/wait_ros.sh: No such file or directory
+2026-08-14T16:02:15: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/04_audio.sh: line 8: source_ros_env: command not found
+2026-08-14T16:02:21: [INFO] [1786690941.251739221] [audio_output_node]: Audio output node started
+2026-08-14T16:02:21: [INFO] [1786690941.256003064] [audio_output_node]: Subscribe topic:/audio/command
+2026-08-14T16:02:21: [INFO] [1786690941.259805254] [audio_output_node]: Sound directory: /home/yeyu/turtlebot3_ws/install/robot_audio_output/share/robot_audio_output/sounds
+2026-08-14T16:02:21: [INFO] [1786690941.263558500] [audio_output_node]: Sound directory: /home/yeyu/turtlebot3_ws/install/robot_audio_output/share/robot_audio_output/sounds
+2026-08-14T16:02:21: [INFO] [1786690941.267099401] [audio_output_node]: TTS engine: gTTS
+2026-08-14T16:02:21: [INFO] [1786690941.272151814] [audio_output_node]: Audio player: mpg123
+2026-08-14T16:02:24: [INFO] [1786690944.892805187] [audio_output_node]: TTS: 주행을 시작합니다.
+2026-08-14T16:06:50: Traceback (most recent call last):
+2026-08-14T16:06:50:   File "/home/yeyu/yeyu_ws/install/yeyu_control/lib/yeyu_control/audio_output_node", line 33, in <module>
+2026-08-14T16:06:50:     sys.exit(load_entry_point('yeyu-control==0.0.0', 'console_scripts', 'audio_output_node')())
+2026-08-14T16:06:50:   File "/home/yeyu/yeyu_ws/install/yeyu_control/lib/python3.10/site-packages/yeyu_control/audio_output_node.py", line 249, in main
+2026-08-14T16:06:50:     rclpy.shutdown()
+2026-08-14T16:06:50:   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/__init__.py", line 130, in shutdown
+2026-08-14T16:06:50:     _shutdown(context=context)
+2026-08-14T16:06:50:   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/utilities.py", line 58, in shutdown
+2026-08-14T16:06:50:     return context.shutdown()
+2026-08-14T16:06:50:   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/context.py", line 102, in shutdown
+2026-08-14T16:06:50:     self.__context.shutdown()
+2026-08-14T16:06:50: rclpy._rclpy_pybind11.RCLError: failed to shutdown: rcl_shutdown already called on the given context, at ./src/rcl/init.c:241
