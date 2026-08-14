@@ -12,7 +12,7 @@ from yeyu_gui.ros_bridge import DashboardRosNode, NO_OBSTACLE_READING
 
 TOTAL_WAYPOINTS = 11
 
-STAGE_ROWS = ['NAV_WAYPOINT', 'CRANK_COURSE', 'S_COURSE', 'SIGNAL_WAIT', 'ACCEL_ZONE', 'PARKING', 'OBSTACLE']   # [수정]
+STAGE_ROWS = ['NAV_WAYPOINT', 'TRACING_CRANK', 'TRACING_S', 'SIGNAL_WAIT', 'ACCEL_ZONE', 'PARKING', 'OBSTACLE']   # [수정]
 STAGE_LABELS = {
     'NAV_WAYPOINT': '경로 주행',
     'TRACING_CRANK': '크랭크 코스',   
@@ -51,7 +51,7 @@ RETRY_TARGETS = {
 
 DEBUG_PANEL_INFO = {   # [추가] 모드 → (패널 제목, 토픽 표시용 텍스트)
     'PARKING': ('주차 디버그', '/parking_debug_image'),
-    'TRACKING_S': ('S코스 디버그', '/s_course_debug_image'),
+    'TRACING_S': ('S코스 디버그', '/s_course_debug_image'),
 }
 DEFAULT_DEBUG_TITLE = '디버그'
 DEFAULT_DEBUG_TOPIC = '대기 중'
@@ -491,7 +491,7 @@ class MainWindow(QMainWindow):
         sig.obstacle.connect(self._on_obstacle)
         sig.image.connect(self._on_image)
         sig.parking_debug_image.connect(lambda img: self._on_any_debug_image('PARKING', img))          # [변경]
-        sig.s_course_debug_image.connect(lambda img: self._on_any_debug_image('TRACKING_S', img))  # [추가]
+        sig.s_course_debug_image.connect(lambda img: self._on_any_debug_image('TRACING_S', img))  # [추가]
         sig.estop_result.connect(self._on_estop_result)
         sig.retry_result.connect(self._on_retry_result)
 
