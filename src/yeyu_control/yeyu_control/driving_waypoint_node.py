@@ -1604,7 +1604,7 @@ class DrivingNode(Node):
             return
         target = self.waypoints[1]
         dist = math.hypot(x - float(target['x']), y - float(target['y']))
-        # self.get_logger().info(f'[CRANK] 현재=({x:.3f}, {y:.3f}), 목표=({target["x"]}, {target["y"]}), dist={dist:.3f}m')  # ← 추가
+        self.get_logger().info(f'[CRANK] 현재=({x:.3f}, {y:.3f}), 목표=({target["x"]}, {target["y"]}), dist={dist:.3f}m')  # ← 추가
         if dist <= self.CRANK_ARRIVAL_TOLERANCE_M:
             self._on_crank_done()
 
