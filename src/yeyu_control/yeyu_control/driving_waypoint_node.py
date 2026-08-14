@@ -340,7 +340,7 @@ class DrivingNode(Node):
         self.enable_motion = self._get_bool_parameter('enable_motion')
 
         self.CRANK_LINEAR_SPEED = 0.05    # 0.03 -> 0.05
-        self.CRANK_STEER_ANGULAR = 0.15
+        self.CRANK_STEER_ANGULAR = 0.12   # 0.12 -> 0.15 -> 0.12
         self.CRANK_RECOVERY_SPEED = 0.02
         self.CRANK_TURN_ANGULAR_SPEED = 0.30
         self.CRANK_TURN_TOLERANCE_RAD = math.radians(3.0)
@@ -638,6 +638,7 @@ class DrivingNode(Node):
                         self.crank_timer = self.create_timer(self.timer_period, self.crank_control_loop)
                 elif self.mode == DrivingMode.TRACING_S:
                     self.set_led('TRACING_S')
+                    self.notify_tts('S자 코스를 시작합니다')
                     self._report_stage('TRACING_S', StageResult.IN_PROGRESS, '')
                     self._reset_s_course_state()
                     if self.s_course_timer is None:
