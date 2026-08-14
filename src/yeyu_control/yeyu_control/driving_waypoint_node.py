@@ -340,7 +340,7 @@ class DrivingNode(Node):
         self.enable_motion = self._get_bool_parameter('enable_motion')
 
         self.CRANK_LINEAR_SPEED = 0.05    # 0.03 -> 0.05
-        self.CRANK_STEER_ANGULAR = 0.12
+        self.CRANK_STEER_ANGULAR = 0.12   # 0.12 -> 0.15 -> 0.12
         self.CRANK_RECOVERY_SPEED = 0.02
         self.CRANK_TURN_ANGULAR_SPEED = 0.30
         self.CRANK_TURN_TOLERANCE_RAD = math.radians(3.0)
@@ -448,7 +448,7 @@ class DrivingNode(Node):
         elif target == 'TRACING_CRANK':    
             self._reset_crank_state()
         elif target == 'TRACING_S':
-            self._reset_TRACING_S_state()
+            self._reset_s_course_state()
 
         self.get_logger().info(f'[RETRY] {target} 재시험 시작 → wp{entry["wp_index"] + 1}로 이동')
         label = STAGE_TTS_LABELS.get(target, target)
@@ -638,8 +638,9 @@ class DrivingNode(Node):
                         self.crank_timer = self.create_timer(self.timer_period, self.crank_control_loop)
                 elif self.mode == DrivingMode.TRACING_S:
                     self.set_led('TRACING_S')
+                    self.notify_tts('S자 코스를 시작합니다')
                     self._report_stage('TRACING_S', StageResult.IN_PROGRESS, '')
-                    self._reset_TRACING_S_state()
+                    self._reset_s_course_state()
                     if self.s_course_timer is None:
                         self.s_course_timer = self.create_timer(self.timer_period, self.s_course_control_loop)
                 elif self.mode == DrivingMode.SIGNAL_WAIT:
@@ -789,7 +790,7 @@ class DrivingNode(Node):
     def on_obstacle_distance(self, msg: Float32):
         if self.is_estopped or self.is_handling_obstacle:
             return
-        if self.mode == DrivingMode.RESULT_SUMMARY:
+        if self.mode != DrivingMode.NAV_TO_END:
             return
         if msg.data <= self.OBSTACLE_STOP_DISTANCE_CM:
             self.get_logger().warn(f'[OBSTACLE] 장애물 감지: {msg.data:.1f} cm')
@@ -1492,6 +1493,7 @@ class DrivingNode(Node):
 
     def _handle_crank_following(self):
         ir = (self.ir_l, self.ir_c, self.ir_r)
+        self.get_logger().info(f'[CRANK_COURSE] IR={ir}')
 
         if ir == (1, 1, 0):
             self.crank_line_lost_since = None
@@ -1510,14 +1512,14 @@ class DrivingNode(Node):
         if ir == (1, 0, 0):
             self.crank_line_lost_since = None
             self.last_meaningful_ir = ir
-            self.publish_cmd(self.CRANK_LINEAR_SPEED, self.CRANK_STEER_ANGULAR)
-            # self.get_logger().info(f'[TRACING_CRANK] IR={ir}, 왼쪽으로 회전, cmd=({self.CRANK_LINEAR_SPEED:.3f}, {self.CRANK_STEER_ANGULAR:.3f})')
+            self.publish_cmd(self.CRANK_RECOVERY_SPEED, self.CRANK_STEER_ANGULAR)
+            # self.get_logger().info(f'[CRANK_COURSE] IR={ir}, 왼쪽으로 회전, cmd=({self.CRANK_LINEAR_SPEED:.3f}, {self.CRANK_STEER_ANGULAR:.3f})')
             return
         if ir == (0, 0, 1):
             self.crank_line_lost_since = None
             self.last_meaningful_ir = ir
-            self.publish_cmd(self.CRANK_LINEAR_SPEED, -self.CRANK_STEER_ANGULAR)
-            # self.get_logger().info(f'[TRACING_CRANK] IR={ir}, 오른쪽으로 회전, cmd=({self.CRANK_LINEAR_SPEED:.3f}, {-self.CRANK_STEER_ANGULAR:.3f})')
+            self.publish_cmd(self.CRANK_RECOVERY_SPEED, -self.CRANK_STEER_ANGULAR)
+            # self.get_logger().info(f'[CRANK_COURSE] IR={ir}, 오른쪽으로 회전, cmd=({self.CRANK_LINEAR_SPEED:.3f}, {-self.CRANK_STEER_ANGULAR:.3f})')
             return
         if ir == (0, 0, 0):
             self._handle_crank_line_lost()
@@ -1639,6 +1641,7 @@ class DrivingNode(Node):
         self.wp_index = 2
         self.mode = DrivingMode.NAV_TO_S
         self.send_waypoint(self.waypoints[2])
+        self.vision_enable = True
         self.vision_enable = True
 
     def s_course_control_loop(self):
