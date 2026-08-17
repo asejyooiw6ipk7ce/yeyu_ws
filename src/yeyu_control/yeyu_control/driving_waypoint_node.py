@@ -281,7 +281,7 @@ class DrivingNode(Node):
         self.declare_parameter('image_topic', '/camera/image_raw/compressed')
         self.declare_parameter('camera_info_topic', '/camera/camera_info')
         self.declare_parameter('aruco_dictionary', 'DICT_4X4_50')
-        self.declare_parameter('target_marker_id', 0)
+        self.declare_parameter('target_marker_id', 5)
         self.declare_parameter('marker_size_m', 0.10)
         self.declare_parameter('pre_dock_distance_m', 0.50)
         self.declare_parameter('pre_dock_tolerance_m', 0.06)
