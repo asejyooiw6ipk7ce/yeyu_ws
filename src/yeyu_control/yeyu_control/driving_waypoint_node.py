@@ -685,8 +685,6 @@ class DrivingNode(Node):
 
     # ================= 카메라: 신호/표지판/ArUco 통합 콜백 (가벼움: 저장만) =================
     def on_camera(self, msg: CompressedImage):
-        if self.vision_enable is False:
-            return
         
         if self.is_estopped:
             return
@@ -1474,6 +1472,10 @@ class DrivingNode(Node):
                 self._publish_cmd(Twist())
                 return
 
+            if self.stage_results['TRACING_CRANK'] == StageResult.IN_PROGRESS:
+                self._throttled_status_republish('TRACING_CRANK', StageResult.IN_PROGRESS)
+
+
             if self.crank_state == LineCourseState.LINE_FOLLOWING:
                 self._handle_crank_following()
                 self._check_crank_arrival()
@@ -1481,6 +1483,12 @@ class DrivingNode(Node):
                 self._handle_crank_creeping()
             elif self.crank_state == LineCourseState.TURNING:
                 self._handle_crank_turning()
+    def _throttled_status_republish(self, stage: str, result: StageResult):
+        now = self.get_clock().now()
+        last = getattr(self, '_last_status_republish_time', None)
+        if last is None or (now - last).nanoseconds / 1e9 >= 2.0:
+            self._publish_status(stage, result.name, '')
+            self._last_status_republish_time = now
 
     def _reset_crank_state(self):
         with self.crank_lock:

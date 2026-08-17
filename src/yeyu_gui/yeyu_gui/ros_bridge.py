@@ -17,8 +17,11 @@ from yeyu_msgs.srv import StartRetry
 
 from cv_bridge import CvBridge, CvBridgeError
 
-from PyQt5.QtCore import QObject, QThread, pyqtSignal
-from PyQt5.QtGui import QImage
+from PyQt5.QtCore import QObject, QThread, pyqtSignal, Qt
+from PyQt5.QtGui import QImage, QPixmap, QPainter, QColor
+from nav_msgs.msg import OccupancyGrid
+from geometry_msgs.msg import PoseWithCovarianceStamped
+
 
 DRIVING_NODE_NAME = 'driving_node'
 NO_OBSTACLE_READING = -1.0
@@ -37,6 +40,8 @@ class RosSignals(QObject):
     ros_connected = pyqtSignal(bool)
     estop_result = pyqtSignal(bool, str)
     retry_result = pyqtSignal(str, bool, str)
+    map_data = pyqtSignal(QImage, float, float, float)   # 이미지, resolution, origin_x, origin_y
+    robot_pose = pyqtSignal(float, float, float)          # x, y, yaw
 
 
 class DashboardRosNode(Node):
@@ -66,7 +71,12 @@ class DashboardRosNode(Node):
         self.create_subscription(   
             CompressedImage, '/s_course_debug_image/compressed', self.on_s_course_debug_image, sensor_qos)
         self.create_subscription(                                                        
-            CompressedImage, '/parking_debug_image/compressed', self.on_parking_debug_image, sensor_qos)  
+            CompressedImage, '/parking_debug_image/compressed', self.on_parking_debug_image, sensor_qos)
+        self.create_subscription(
+            OccupancyGrid, '/map', self.on_map, 10)
+        # /amcl_pose는 이미 driving_node가 구독하지만, GUI도 따로 구독 가능
+        self.create_subscription(
+            PoseWithCovarianceStamped, '/amcl_pose', self.on_amcl_pose, 10)
 
         self.estop_client = self.create_client(Trigger, '/emergency_stop')
         self.retry_client = self.create_client(StartRetry, '/start_retry')
@@ -142,16 +152,32 @@ class DashboardRosNode(Node):
             return
         try:
             cv_image = self.bridge.compressed_imgmsg_to_cv2(msg, desired_encoding='bgr8')
-        except (CvBridgeError, cv2.error)as e:
+        except (CvBridgeError, cv2.error) as e:
             self.get_logger().warn(f'debug image decode 실패: {e}')
             return
-        rgb =cv2.cvtColor (cv_image, cv2.COLOR_BGR2RGB)
+        rgb = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
         rgb = np.ascontiguousarray(rgb)
         h, w, ch = rgb.shape
         qimage = QImage(rgb.data, w, h, ch * w, QImage.Format_RGB888).copy()
         self.signals.parking_debug_image.emit(qimage)
 
+    def on_map(self, msg: OccupancyGrid):
+        w, h = msg.info.width, msg.info.height
+        data = np.array(msg.data, dtype=np.int8).reshape(h, w)
+        # -1(미탐사)=회색, 0(빈공간)=흰색, 100(장애물)=검정
+        img = np.zeros((h, w), dtype=np.uint8)
+        img[data == -1] = 128
+        img[data == 0] = 255
+        img[data == 100] = 0
+        img = np.flipud(img)  # OccupancyGrid는 아래→위 순서라 뒤집어줘야 화면과 맞음
+        img = np.ascontiguousarray(img)
+        qimage = QImage(img.data, w, h, w, QImage.Format_Grayscale8).copy()
+        self.signals.map_data.emit(qimage, msg.info.resolution, msg.info.origin.position.x, msg.info.origin.position.y)
 
+    def on_amcl_pose(self, msg: PoseWithCovarianceStamped):
+        q = msg.pose.pose.orientation
+        yaw = math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z))
+        self.signals.robot_pose.emit(msg.pose.pose.position.x, msg.pose.pose.position.y, yaw)
 
     # ================= 서비스 호출 =================
     def call_emergency_stop(self):
