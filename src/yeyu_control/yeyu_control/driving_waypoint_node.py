@@ -1493,7 +1493,7 @@ class DrivingNode(Node):
 
     def _handle_crank_following(self):
         ir = (self.ir_l, self.ir_c, self.ir_r)
-        self.get_logger().info(f'[CRANK_COURSE] IR={ir}')
+        # self.get_logger().info(f'[CRANK_COURSE] IR={ir}')
 
         if ir == (1, 1, 0):
             self.crank_line_lost_since = None
@@ -1697,7 +1697,7 @@ class DrivingNode(Node):
 
     def _on_s_course_done(self):
         self.s_course_state = SCourseState.DONE
-        self._report_stage('S_COURSE', StageResult.PASS, 'S자 코스 라인트레이싱 완료')
+        self._report_stage('TRACING_S', StageResult.PASS, 'S자 코스 라인트레이싱 완료')
         self.notify_tts('S자 코스를 완료했습니다.')
         self._publish_cmd(Twist())
 
@@ -1715,7 +1715,7 @@ class DrivingNode(Node):
 
     def _on_s_course_failed(self, reason: str):
         self.s_course_state = SCourseState.FAILED
-        self._report_stage('S_COURSE', StageResult.FAIL, reason)
+        self._report_stage('TRACING_S', StageResult.FAIL, reason)
         self.get_logger().warn(f'[S_COURSE] FAILED: {reason}')
         self.notify_tts('S자 코스에 실패했습니다. 다음 구간으로 이동합니다.')
         self._publish_cmd(Twist())
