@@ -544,8 +544,16 @@ class DrivingNode(Node):
             return
         result = future.result()
         status = result.status
-        self.get_logger().info(f'[on_nav_result] status={status}')
-
+        error = result.result
+        # ! status를 숫자 대신 문자열로 보기 편하게 바꿈
+        # self.get_logger().info(f'[on_nav_result] status={status}')
+        status_name = {
+            GoalStatus.STATUS_SUCCEEDED: 'SUCCEEDED',
+            GoalStatus.STATUS_ABORTED: 'ABORTED',
+            GoalStatus.STATUS_CANCELED: 'CANCELED',
+        }.get(status, f'UNKNOWN({status})')
+        self.get_logger().info(f'[on_nav_result] status={status_name}')
+    
         with self._nav_result_lock:
             self._nav_result_pending = status
 
