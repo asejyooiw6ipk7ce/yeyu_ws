@@ -23,18 +23,24 @@ WINDOWS=(
     "06-driving:06_driving.sh"
 )
 
-build_window_cmd() {
+# 각 노드용 "재시작 루프 스크립트"를 실제 파일로 생성하고, 그 파일 경로를 리턴
+build_window_script() {
     local name="$1"
     local script="$2"
     local logfile="${LOG_DIR}/${name}.log"
-    cat <<EOF
+    local runner="${LOG_DIR}/.runner_${name}.sh"
+
+    cat > "${runner}" <<RUNNER_EOF
+#!/bin/bash
 while true; do
     echo "[\$(date '+%Y-%m-%d %H:%M:%S')] [${name}] 시작" | tee -a "${logfile}"
     bash "${NODES_DIR}/${script}" 2>&1 | tee -a "${logfile}"
     echo "[\$(date '+%Y-%m-%d %H:%M:%S')] [${name}] 종료됨. 3초 후 재시작합니다." | tee -a "${logfile}"
     sleep 3
 done
-EOF
+RUNNER_EOF
+    chmod +x "${runner}"
+    echo "${runner}"
 }
 
 script_for_window() {
@@ -60,14 +66,14 @@ boot_session() {
     for entry in "${WINDOWS[@]}"; do
         local name="${entry%%:*}"
         local script="${entry##*:}"
-        local cmd
-        cmd="$(build_window_cmd "${name}" "${script}")"
+        local runner_path
+        runner_path="$(build_window_script "${name}" "${script}")"
 
         if [ "${first}" -eq 1 ]; then
-            tmux new-session -d -s "${SESSION}" -n "${name}" "bash -c '${cmd}'"
+            tmux new-session -d -s "${SESSION}" -n "${name}" "${runner_path}"
             first=0
         else
-            tmux new-window -t "${SESSION}" -n "${name}" "bash -c '${cmd}'"
+            tmux new-window -t "${SESSION}" -n "${name}" "${runner_path}"
         fi
     done
 
@@ -105,15 +111,15 @@ respawn_window() {
         echo "[tmux respawn] 알 수 없는 창 이름: ${name}"
         return 1
     }
-    local cmd
-    cmd="$(build_window_cmd "${name}" "${script}")"
+    local runner_path
+    runner_path="$(build_window_script "${name}" "${script}")"
 
     if tmux list-windows -t "${SESSION}" -F '#{window_name}' 2>/dev/null | grep -qx "${name}"; then
         echo "[tmux respawn] 창 재생성: ${name}"
-        tmux respawn-window -k -t "${SESSION}:${name}" "bash -c '${cmd}'"
+        tmux respawn-window -k -t "${SESSION}:${name}" "${runner_path}"
     else
         echo "[tmux respawn] 창이 존재하지 않아 새로 생성: ${name}"
-        tmux new-window -t "${SESSION}" -n "${name}" "bash -c '${cmd}'"
+        tmux new-window -t "${SESSION}" -n "${name}" "${runner_path}"
     fi
 }
 
