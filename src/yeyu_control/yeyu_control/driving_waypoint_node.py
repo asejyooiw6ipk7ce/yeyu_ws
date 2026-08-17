@@ -281,7 +281,7 @@ class DrivingNode(Node):
         self.declare_parameter('image_topic', '/camera/image_raw/compressed')
         self.declare_parameter('camera_info_topic', '/camera/camera_info')
         self.declare_parameter('aruco_dictionary', 'DICT_4X4_50')
-        self.declare_parameter('target_marker_id', 0)
+        self.declare_parameter('target_marker_id', 5)
         self.declare_parameter('marker_size_m', 0.10)
         self.declare_parameter('pre_dock_distance_m', 0.50)
         self.declare_parameter('pre_dock_tolerance_m', 0.06)
@@ -348,10 +348,10 @@ class DrivingNode(Node):
         self.CRANK_LINE_GRACE_SEC = 0.2
         self.CRANK_ARRIVAL_TOLERANCE_M = 0.15
         self.CRANK_LINE_LOST_TIMEOUT_SEC = 30.0
-        self.CRANK_CREEP_DISTANCE_M = 0.06 # 0.07 -> 0.06 -> 0.07
+        self.CRANK_CREEP_DISTANCE_M = 0.055 # 0.07 -> 0.06 -> 0.07 -> 0.06 -> 0.055
 
         self.S_ROI_TOP_RATIO = 0.6        # 0.85 -> 0.6 : 하단 40%만 봄
-        self.S_LINE_BLACK_THRESHOLD = 60
+        self.S_LINE_BLACK_THRESHOLD = 60 
         self.S_LINE_PIXEL_MIN = 50     #100 -> 50 : 50픽셀 이상의 픽셀이 있어야 라인있음 판정
         self.S_LINEAR_SPEED_MAX = 0.10
         self.S_LINEAR_SPEED_MIN = 0.04
@@ -359,8 +359,8 @@ class DrivingNode(Node):
         self.S_ANGULAR_MAX = 0.6
         self.S_OFFSET_DEADBAND = 0.05
         self.S_LINE_LOST_TIMEOUT_SEC = 30.0 #1.2 -> 30.0
-        self.S_ARRIVAL_TOLERANCE_M = 0.10
-        self.S_OFFSET_JUMP_LIMIT = 0.4   # 직전 오프셋 대비 이만큼 이상 튀면 무시 (0~1 스케일, 실측 후 조정)
+        self.S_ARRIVAL_TOLERANCE_M = 0.3   # 0.10 -> 0.15 -> 0.2 -> 0.3
+        self.S_OFFSET_JUMP_LIMIT = 0.6   # 0.4 -> 0.8 -> 0.6
         self.S_BOTTOM_BAND_HEIGHT_RATIO = 0.3   # 채택된 컨투어의 bounding box 중 하단 몇 %만으로 cx 계산할지
 
         self.vision_enable = False
@@ -544,8 +544,16 @@ class DrivingNode(Node):
             return
         result = future.result()
         status = result.status
-        self.get_logger().info(f'[on_nav_result] status={status}')
-
+        error = result.result
+        # ! status를 숫자 대신 문자열로 보기 편하게 바꿈
+        # self.get_logger().info(f'[on_nav_result] status={status}')
+        status_name = {
+            GoalStatus.STATUS_SUCCEEDED: 'SUCCEEDED',
+            GoalStatus.STATUS_ABORTED: 'ABORTED',
+            GoalStatus.STATUS_CANCELED: 'CANCELED',
+        }.get(status, f'UNKNOWN({status})')
+        self.get_logger().info(f'[on_nav_result] status={status_name}')
+    
         with self._nav_result_lock:
             self._nav_result_pending = status
 
@@ -728,7 +736,7 @@ class DrivingNode(Node):
         elif self.mode == DrivingMode.PARKING:
             self._process_aruco(flipped, header, image_width=flipped.shape[1], image_height=flipped.shape[0])   # [수정] msg.header → header
         elif self.mode == DrivingMode.TRACING_S:
-            offset = self._detect_s_line_offset(flipped)
+            offset = self._detect_s_line_offset(flipped) # ? 왜 이건 _process가 아닌가 : 판단+행동이 들어가있지 않으므로(s_cource_control_loop에서 함)
             with self.s_course_lock:
                 self.s_line_offset = offset
                 if offset is not None:
@@ -850,7 +858,7 @@ class DrivingNode(Node):
                 try:
                     debugout_msg = self.bridge.cv2_to_compressed_imgmsg(debug_frame, dst_format='jpg')
                     debugout_msg.header = header
-                    self.debug_pub.publish(debugout_msg)
+                    self.parking_debug_pub.publish(debugout_msg)
                 except CvBridgeError as exc:
                     self.get_logger().warn(f'debug image publish failed: {exc}')
 
@@ -909,6 +917,9 @@ class DrivingNode(Node):
 
         gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
         mask = cv2.inRange(gray, 0, self.S_LINE_BLACK_THRESHOLD)   #그레이스케일 + 밝기값이 0~threshold 사이인 곳은 흰색만 남기겠다(이진화)
+        # # ! 자동노출로 인해 밝기가 달라지면 객체 인식이 안됨 -> 이미지 밝기 분포를 자동 분석해 threshold를 동적으로 결정
+        # blur = cv2.GaussianBlur(gray, (5, 5), 0)
+        # _, mask = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)  
 
         # 노이즈 제거 (작은 얼룩 없애기)
         kernel = np.ones((3, 3), np.uint8)
@@ -921,6 +932,8 @@ class DrivingNode(Node):
         best_contour = None
 
         candidates = []
+        debug_candidates = [] # TODO 디버그용 , 정보 확인
+
         for c in contours:
             area = cv2.contourArea(c)
             if area < self.S_LINE_PIXEL_MIN:
@@ -928,7 +941,9 @@ class DrivingNode(Node):
 
             x, y, cw, ch = cv2.boundingRect(c)
 
-            if y <= 3 and cw > w * 0.5:    # 위에 붙어있고 + 폭이 넓으면 벽/가구
+            if y <= 3 or cw > w * 0.5:    # 위에 붙어있고 + 폭이 넓으면 벽/가구
+                reason = 'top_edge' if y <= 3 else 'too_wide'
+                debug_candidates.append((x, y, cw, ch, area, 0.0, reason))  # 탈락 사유 표시
                 continue
 
             # ! 컨투어 전체가 아니라 하단 일부 밴드만으로 cx 계산
@@ -949,10 +964,26 @@ class DrivingNode(Node):
 
             this_offset = (cx - w / 2.0) / (w / 2.0)
 
-            # 핵심 추가: 직전에 알던 라인 위치와 너무 멀면 후보에서 제외
+            # solidity 계산
+            hull = cv2.convexHull(c)
+            hull_area = cv2.contourArea(hull)
+            solidity = area / hull_area if hull_area > 0 else 0
+            # TODO 디버그 텍스트 보고 주석해체
+            if solidity < 0.5 : # 삐뚤삐뚤하고 구멍 많은 형태는 무시
+                debug_candidates.append((x, y, cw, ch, area, solidity, 'low_solidity'))
+                continue
+
+            rejected_reason = None  
+
+            # 직전에 알던 라인 위치와 너무 멀면 후보에서 제외
             if self.s_last_valid_offset is not None:
                 if abs(this_offset - self.s_last_valid_offset) > self.S_OFFSET_JUMP_LIMIT:
-                    continue
+                    rejected_reason = 'jump_limit' # TODO 디버그용 추가
+                    #continue #TODO 디버그용 주석처리
+
+            debug_candidates.append((x, y, cw, ch, area, solidity, rejected_reason))  # TODO 디버그용 출력
+            if rejected_reason is not None:
+                continue    
 
             # 위치 필터: ROI 안에서 얼마나 아래쪽(바닥에 가까운지)에 있는지 점수화
             bottom_y = y + ch   # 이 덩어리의 ROI 내 하단 y좌표
@@ -974,7 +1005,9 @@ class DrivingNode(Node):
             band_rect = None
 
         if self.enable_debug_image:
-            self._draw_s_course_debug_image(cv_image, mask, roi_top, cx_full, offset, best_contour, band_rect)
+            # TODO 디버그용 인수에 debug_candidates 추가
+            # self._draw_s_course_debug_image(cv_image, mask, roi_top, cx_full, offset, best_contour, band_rect)
+            self._draw_s_course_debug_image(cv_image, mask, roi_top, cx_full, offset, best_contour, band_rect, debug_candidates)
 
         return offset
 
@@ -1332,9 +1365,25 @@ class DrivingNode(Node):
                         cv2.FONT_HERSHEY_SIMPLEX, 0.60, (0, 0, 255), 2, cv2.LINE_AA)
         return debug
 
-    def _draw_s_course_debug_image(self, cv_image, mask, roi_top, cx_full, offset, best_contour=None, band_rect=None):
+    # TODO 디버그용 인수에 debug_candidates 추가
+    # def _draw_s_course_debug_image(self, cv_image, mask, roi_top, cx_full, offset, best_contour=None, band_rect=None):
+    def _draw_s_course_debug_image(self, cv_image, mask, roi_top, cx_full, offset, best_contour=None, band_rect=None, debug_candidates=None):
         h, w = cv_image.shape[:2]
         debug = cv_image.copy()
+
+        # TODO 디버그용 모든 후보를 박스+텍스트로 표시
+        if debug_candidates:
+            for (x, y, cw, ch, area, solidity, rejected_reason) in debug_candidates:
+                # 원본 이미지 좌표로 변환
+                top_left = (x, y + roi_top)
+                bottom_right = (x + cw, y + ch + roi_top)
+                color = (0, 0, 255) if rejected_reason else (0, 255, 0)   # 탈락=빨강, 통과=초록
+                cv2.rectangle(debug, top_left, bottom_right, color, 1)
+                label = f'a={area:.0f} s={solidity:.2f}'
+                if rejected_reason:
+                    label += f' [{rejected_reason}]'
+                cv2.putText(debug, label, (top_left[0], top_left[1] - 5),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1, cv2.LINE_AA)
 
         # ROI 경계선 표시(민트 가로선)
         cv2.rectangle(debug, (0, roi_top), (w, h), (255, 255, 0), 2)
@@ -1601,6 +1650,7 @@ class DrivingNode(Node):
             return
         target = self.waypoints[1]
         dist = math.hypot(x - float(target['x']), y - float(target['y']))
+        # self.get_logger().info(f'[CRANK] 현재=({x:.3f}, {y:.3f}), 목표=({target["x"]}, {target["y"]}), dist={dist:.3f}m')  # ← 추가
         if dist <= self.CRANK_ARRIVAL_TOLERANCE_M:
             self._on_crank_done()
 
@@ -1642,7 +1692,6 @@ class DrivingNode(Node):
         self.mode = DrivingMode.NAV_TO_S
         self.send_waypoint(self.waypoints[2])
         self.vision_enable = True
-        self.vision_enable = True
 
     def s_course_control_loop(self):
         if self.is_estopped:
@@ -1658,15 +1707,15 @@ class DrivingNode(Node):
             offset = self.s_line_offset
             last_seen = self.s_line_last_seen_time
 
+        self._check_s_course_arrival()
+        if self.s_course_state == SCourseState.DONE:
+            return
+
         if offset is None:
             if self._elapsed(last_seen) > self.S_LINE_LOST_TIMEOUT_SEC:
                 self._on_s_course_failed('카메라에서 라인 미검출 지속')
                 return
             self.publish_cmd(self.S_LINEAR_SPEED_MIN, 0.0)
-            return
-
-        self._check_s_course_arrival()
-        if self.s_course_state == SCourseState.DONE:
             return
 
         if abs(offset) < self.S_OFFSET_DEADBAND:
@@ -1690,14 +1739,17 @@ class DrivingNode(Node):
         with self.data_lock:
             x, y = self.current_x, self.current_y
         if x is None:
+            self.get_logger().warn('[TRACING_CRANK] 현재 위치를 알 수 없습니다.')
             return
         target = self.waypoints[3]
-        if math.hypot(x - float(target['x']), y - float(target['y'])) <= self.S_ARRIVAL_TOLERANCE_M:
+        dist = math.hypot(x - float(target['x']), y - float(target['y'])) 
+        self.get_logger().info(f'[S_COURSE] 현재=({x:.3f}, {y:.3f}), 목표=({target["x"]}, {target["y"]}), dist={dist:.3f}m')
+        if dist <= self.S_ARRIVAL_TOLERANCE_M:
             self._on_s_course_done()
 
     def _on_s_course_done(self):
         self.s_course_state = SCourseState.DONE
-        self._report_stage('S_COURSE', StageResult.PASS, 'S자 코스 라인트레이싱 완료')
+        self._report_stage('TRACING_S', StageResult.PASS, 'S자 코스 라인트레이싱 완료')
         self.notify_tts('S자 코스를 완료했습니다.')
         self._publish_cmd(Twist())
 
@@ -1715,7 +1767,7 @@ class DrivingNode(Node):
 
     def _on_s_course_failed(self, reason: str):
         self.s_course_state = SCourseState.FAILED
-        self._report_stage('S_COURSE', StageResult.FAIL, reason)
+        self._report_stage('TRACING_S', StageResult.FAIL, reason)
         self.get_logger().warn(f'[S_COURSE] FAILED: {reason}')
         self.notify_tts('S자 코스에 실패했습니다. 다음 구간으로 이동합니다.')
         self._publish_cmd(Twist())
