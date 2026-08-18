@@ -12,7 +12,7 @@ const logDir = path.join(launchDir, "logs");
 module.exports = {
   apps: [
     {
-      name: "turtlebot3-robot",
+      name: "yeyu-robot",
       script: supervisorScript,
       interpreter: "/bin/bash",
       cwd: launchDir,
@@ -30,8 +30,8 @@ module.exports = {
       time: true,
       merge_logs: true,
 
-      out_file: path.join(logDir, "turtlebot3-supervisor-out.log"),
-      error_file: path.join(logDir, "turtlebot3-supervisor-error.log"),
+      out_file: path.join(logDir, "yeyu-supervisor-out.log"),
+      error_file: path.join(logDir, "yeyu-supervisor-error.log"),
     },
   ],
 };
