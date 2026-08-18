@@ -35,6 +35,7 @@ from ament_index_python.packages import get_package_share_directory
 from cv_bridge import CvBridge, CvBridgeError
 import cv2
 import numpy as np
+from tf2_ros import Buffer, TransformListener
 
 
 # ================= wp 도착 시 자동 모드 전환 테이블 =================
@@ -115,6 +116,7 @@ class DrivingNode(Node):
         self.ACCEL_GRACE_PERIOD_SEC = 2.0
         self.accel_zone_max_speed = 0.0
         self.ACCEL_TARGET_SPEED = 0.18
+        
 
         self.ACCEL_SUSTAIN_SEC = 0.5
         self.ACCEL_DIP_TOLERANCE_SEC = 0.15
@@ -140,6 +142,8 @@ class DrivingNode(Node):
         self.latest_frame = None
         self.latest_frame_header = None
         self.accel_timer = None   # _process_speed_sign / accel_zone_check_loop에서 참조하는데 초기화 누락
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
 
         # --- 구간별 성공/실패 결과 저장소 ---
         self.stage_results = {
@@ -376,6 +380,12 @@ class DrivingNode(Node):
             or self.status_pub.get_subscription_count() == 0):
             self.get_logger().warn('[LED] 구독자, [audio]구독자 [gui]구독자 대기 중...')
             return
+
+        if not self.tf_buffer.can_transform(
+            'map', 'baselink' , rclpy.time.Time(),
+            timeout=Duration(seconds=0.1)
+        ):
+            self.get_logger().warn('[Nav2] map -> base_link tf 대기중 ')
         self._start_check_timer.cancel()
         self._pending_start_timer = self.create_timer(0.5, self._do_start)
 
@@ -693,8 +703,6 @@ class DrivingNode(Node):
 
     # ================= 카메라: 신호/표지판/ArUco 통합 콜백 (가벼움: 저장만) =================
     def on_camera(self, msg: CompressedImage):
-        if self.vision_enable is False:
-            return
         
         if self.is_estopped:
             return
@@ -1523,6 +1531,10 @@ class DrivingNode(Node):
                 self._publish_cmd(Twist())
                 return
 
+            if self.stage_results['TRACING_CRANK'] == StageResult.IN_PROGRESS:
+                self._throttled_status_republish('TRACING_CRANK', StageResult.IN_PROGRESS)
+
+
             if self.crank_state == LineCourseState.LINE_FOLLOWING:
                 self._handle_crank_following()
                 self._check_crank_arrival()
@@ -1530,6 +1542,13 @@ class DrivingNode(Node):
                 self._handle_crank_creeping()
             elif self.crank_state == LineCourseState.TURNING:
                 self._handle_crank_turning()
+    def _throttled_status_republish(self, stage: str, result: StageResult):
+        now = self.get_clock().now()
+        last = getattr(self, '_last_status_republish_time', None)
+        if last is None or (now - last).nanoseconds / 1e9 >= 2.0:
+            self._publish_status(stage, result.name, '')
+            self._last_status_republish_time = now
+
 
     def _reset_crank_state(self):
         with self.crank_lock:
@@ -1542,7 +1561,7 @@ class DrivingNode(Node):
 
     def _handle_crank_following(self):
         ir = (self.ir_l, self.ir_c, self.ir_r)
-        self.get_logger().info(f'[CRANK_COURSE] IR={ir}')
+        # self.get_logger().info(f'[CRANK_COURSE] IR={ir}')
 
         if ir == (1, 1, 0):
             self.crank_line_lost_since = None

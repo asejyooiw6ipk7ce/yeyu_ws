@@ -4,7 +4,8 @@
 #    set_usb_speaker.sh 경로가 다르면 아래 SPEAKER_SCRIPT 값을 수정하세요.
 # ================================================================
 set -uo pipefail
-source "$HOME/yeyu_ws/deploy/lib/wait_ros.sh"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/../lib/wait_ros.sh"
 source_ros_env
 
 SPEAKER_SCRIPT="$HOME/yeyu_ws/bin/set_usb_speaker.sh"

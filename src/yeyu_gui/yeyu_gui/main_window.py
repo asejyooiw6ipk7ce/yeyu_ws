@@ -1,14 +1,19 @@
 from datetime import datetime
 
 from PyQt5.QtCore import Qt, QTimer, pyqtSlot
-from PyQt5.QtGui import QColor, QImage, QPixmap, QFont
+from PyQt5.QtGui import QColor, QImage, QPixmap, QFont, QPainter
 from PyQt5.QtWidgets import (
     QFrame, QGridLayout, QHBoxLayout, QHeaderView, QLabel, QMainWindow,
     QMessageBox, QProgressBar, QPushButton, QSizePolicy, QTableWidget,
     QTableWidgetItem, QVBoxLayout, QWidget,
+
 )
 
+import math
+import numpy as np
+
 from yeyu_gui.ros_bridge import DashboardRosNode, NO_OBSTACLE_READING
+
 
 TOTAL_WAYPOINTS = 11
 
@@ -96,7 +101,50 @@ QFrame#camera {{
     border-radius: 12px;
 }}
 """
+class MiniMapWidget(QLabel):
+    def __init__(self):
+        super().__init__()
+        self.map_pixmap = None
+        self.resolution = 0.05
+        self.origin_x = 0.0
+        self.origin_y = 0.0
+        self.robot_x = 0.0
+        self.robot_y = 0.0
+        self.robot_yaw = 0.0
+        self.setStyleSheet('background-color: #101113; border-radius: 8px;')
 
+    def set_map(self, qimage, resolution, origin_x, origin_y):
+        self.map_pixmap = QPixmap.fromImage(qimage)
+        self.resolution = resolution
+        self.origin_x = origin_x
+        self.origin_y = origin_y
+        self.update()
+
+    def set_robot_pose(self, x, y, yaw):
+        self.robot_x, self.robot_y, self.robot_yaw = x, y, yaw
+        self.update()
+
+    def paintEvent(self, event):
+        if self.map_pixmap is None:
+            return
+        painter = QPainter(self)
+        scaled = self.map_pixmap.scaled(self.size(), Qt.KeepAspectRatio)
+        painter.drawPixmap(0, 0, scaled)
+
+        scale = scaled.width() / self.map_pixmap.width()
+        map_h = self.map_pixmap.height()
+        px = (self.robot_x - self.origin_x) / self.resolution * scale
+        py = (map_h - (self.robot_y - self.origin_y) / self.resolution) * scale
+
+        painter.setBrush(QColor('#e0533e'))
+        painter.setPen(Qt.NoPen)
+        painter.drawEllipse(int(px) - 6, int(py) - 6, 12, 12)
+
+        arrow_len = 20
+        ex = px + arrow_len * math.cos(-self.robot_yaw)
+        ey = py + arrow_len * math.sin(-self.robot_yaw)
+        painter.setPen(QColor('#e0533e'))
+        painter.drawLine(int(px), int(py), int(ex), int(ey))
 
 class MainWindow(QMainWindow):
 
@@ -306,6 +354,12 @@ class MainWindow(QMainWindow):
             self._make_camera_panel(DEFAULT_DEBUG_TITLE, DEFAULT_DEBUG_TOPIC)
         layout.addWidget(panel)
 
+        # ---- 미니맵 추가 ----
+        self.minimap = MiniMapWidget()
+        self.minimap.setFixedSize(340, 340)
+        layout.addWidget(self.minimap)
+        # --------------------
+
         layout.addStretch(1) 
 
         return layout
@@ -494,6 +548,8 @@ class MainWindow(QMainWindow):
         sig.s_course_debug_image.connect(lambda img: self._on_any_debug_image('TRACING_S', img))  # [추가]
         sig.estop_result.connect(self._on_estop_result)
         sig.retry_result.connect(self._on_retry_result)
+        sig.map_data.connect(self.minimap.set_map)          # 추가
+        sig.robot_pose.connect(self.minimap.set_robot_pose)
 
     def _on_any_debug_image(self, source_mode: str, image: QImage):   # [추가]
         """현재 driving mode와 일치하는 디버그 이미지만 화면에 그림. 
