@@ -357,7 +357,7 @@ class DrivingNode(Node):
         self.S_ROI_TOP_RATIO = 0.6        # 0.85 -> 0.6 : 하단 40%만 봄
         self.S_LINE_BLACK_THRESHOLD = 60 
         self.S_LINE_PIXEL_MIN = 50     #100 -> 50 : 50픽셀 이상의 픽셀이 있어야 라인있음 판정
-        self.S_LINEAR_SPEED_MAX = 0.10
+        self.S_LINEAR_SPEED_MAX = 0.07 # 0.1-> 0.07
         self.S_LINEAR_SPEED_MIN = 0.04
         self.S_ANGULAR_GAIN = 0.9
         self.S_ANGULAR_MAX = 0.6
@@ -972,14 +972,14 @@ class DrivingNode(Node):
                 continue
             cx = x + (M['m10'] / M['m00'])
 
-            this_offset = (cx - w / 2.0) / (w / 2.0)
+            this_offset = (cx - w / 2.0 + 100) / (w / 2.0+ 100)
 
             # solidity 계산
             hull = cv2.convexHull(c)
             hull_area = cv2.contourArea(hull)
             solidity = area / hull_area if hull_area > 0 else 0
             # TODO 디버그 텍스트 보고 주석해체
-            if solidity < 0.5 : # 삐뚤삐뚤하고 구멍 많은 형태는 무시
+            if solidity < 0.25: # 삐뚤삐뚤하고 구멍 많은 형태는 무시
                 debug_candidates.append((x, y, cw, ch, area, solidity, 'low_solidity'))
                 continue
 
@@ -1004,7 +1004,7 @@ class DrivingNode(Node):
             candidates.sort(key=lambda t: t[0], reverse=True)
             best_contour = candidates[0][1]
             offset = candidates[0][2]
-            cx_full = (offset * (w / 2.0)) + (w / 2.0)
+            cx_full = (offset * (w / 2.0+ 100)) + (w / 2.0+ 100)
             self.s_last_valid_offset = offset   # 성공했을 때만 "최근 유효 위치" 갱신
 
             # 디버그용: 채택된 컨투어의 밴드 영역 좌표도 구해둠
