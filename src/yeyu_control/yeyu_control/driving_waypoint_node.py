@@ -33,6 +33,7 @@ from yeyu_control.states.linecourse_state import LineCourseState
 from yeyu_control.states.linecourse_state import SCourseState
 from ament_index_python.packages import get_package_share_directory
 from cv_bridge import CvBridge, CvBridgeError
+import subprocess
 import cv2
 import numpy as np
 
@@ -104,8 +105,9 @@ class DrivingNode(Node):
         self.data_lock = threading.Lock()
         self.crank_lock = threading.Lock()
         self.s_course_lock = threading.Lock()
-        self.camera_lock = threading.Lock()          # [수정] on_camera에서 쓰는데 초기화가 빠져 있던 것 추가
-        self._nav_result_lock = threading.Lock()      # [수정] 마찬가지로 초기화 누락 추가
+        self.camera_lock = threading.Lock()          
+        self._nav_result_lock = threading.Lock()   
+        self.wifi_check_lock = threading.Lock()
 
         self.wp_index = 0
         self.green_count = 0
@@ -216,6 +218,7 @@ class DrivingNode(Node):
         self.s_line_offset = None
         self.s_line_last_seen_time = self.get_clock().now() - Duration(seconds=999.0)
         self.s_last_valid_offset = None
+        self.s_course_state = SCourseState.TRACKING
 
         # --- 구독/발행 ---
         sensor_qos = QoSProfile(
@@ -266,6 +269,11 @@ class DrivingNode(Node):
             self.DEFAULT_LOCAL_INFLATION_RADIUS, self.DEFAULT_GLOBAL_INFLATION_RADIUS)
         self.startup_timer = self.create_timer(0.5, self.on_startup)
 
+        # ========== wifi 감지 상태 ===========
+        self.wifi_connected = True              # 현재 연결 상태
+        self.home_wp_index = 0      # 처음 위치
+        self.wifi_disconnection_handled = False # 한 번만 처리하기 위한 플래그
+
         # ========== 타이머 ===========
         self.timer_period = 1.0 / max(self.control_rate_hz, 0.5)
 
@@ -275,6 +283,7 @@ class DrivingNode(Node):
         self.s_course_timer = None
         self.vision_timer = self.create_timer(self.timer_period, self.camera_processing_loop)
         self.nav_result_timer = self.create_timer(self.timer_period, self._nav_result_loop)
+        self.wifi_timer = self.create_timer(5.0, self.wifi_polling_loop)
 
     # ================= 파라미터 =================
     def _declare_parking_parameters(self):
@@ -449,6 +458,14 @@ class DrivingNode(Node):
             self._reset_crank_state()
         elif target == 'TRACING_S':
             self._reset_s_course_state()
+        elif target == 'ACCEL_ZONE':
+            self.accel_zone_enter_time = None
+            self.accel_zone_max_speed = 0.0
+            self.accel_sustain_start = None
+            self.accel_last_below_time = None
+
+        if target != 'TRACING_CRANK':
+            self.vision_enable = True
 
         self.get_logger().info(f'[RETRY] {target} 재시험 시작 → wp{entry["wp_index"] + 1}로 이동')
         label = STAGE_TTS_LABELS.get(target, target)
@@ -1829,6 +1846,46 @@ class DrivingNode(Node):
         else:
             fail_stages = [name for name, r in self.stage_results.items() if r == StageResult.FAIL]
             self.notify_tts(f'전체 코스를 완료했습니다. {", ".join(fail_stages)} 구간에서 실패했습니다.')
+
+    def check_wifi_status(self) -> bool:
+        try:
+            result = subprocess.run(
+                ['nmcli', 'networking', 'connectivity'],
+                capture_output=True,
+                timeout=2,
+                text=True
+            )
+            status = result.stdout.strip()
+            return status == 'full'
+        except Exception as e:
+            self.get_logger().warn(f'Wifi 상태 확인 실패: {e}')
+            return True
+
+    def wifi_polling_loop(self):
+        current_status = self.check_wifi_status()
+
+        with self.wifi_check_lock:
+            if not current_status and self.wifi_connected:
+                self.wifi_connected = False
+                self.get_logger().error('Wifi 연결 끊김!')
+                self.on_wifi_disconnected()
+            elif current_status and not self.wifi_connected:
+                self.wifi_connected = True
+                self.get_logger().info('Wifi 다시 연결됨')
+                self.wifi_disconnection_handled = False
+
+    def on_wifi_disconnected(self):
+        if self.wifi_disconnection_handled:
+            return
+
+        self.wifi_disconnection_handled = True
+        self.get_logger().error('[Wifi 단절] 처음 위치로 돌아갑니다')
+
+        self.publish_cmd(0.0, 0.0)
+        self.notify_tts('Wifi가 연결되지 않았습니다. 처음 위치로 돌아갑니다.')
+
+        home_wp = self.waypoints[self.home_wp_index]
+        self.send_waypoint(home_wp)
 
     def destroy_node(self):
         for _ in range(5):
