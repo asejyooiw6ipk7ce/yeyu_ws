@@ -389,7 +389,7 @@ class DrivingNode(Node):
             return
             
         # [추가] tf뿐 아니라 실제 amcl_pose 값도 최소 한 번은 들어왔는지 확인
-        
+
         with self.data_lock:
             pose_ready = self.current_x is not None
         if not pose_ready:
@@ -1868,7 +1868,7 @@ class DrivingNode(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = DrivingNode()
-    executor = MultiThreadedExecutor(num_threads=4)
+    executor = MultiThreadedExecutor(num_threads=2)
     executor.add_node(node)
     try:
         executor.spin()
