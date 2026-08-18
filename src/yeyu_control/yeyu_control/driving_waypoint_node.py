@@ -358,7 +358,7 @@ class DrivingNode(Node):
         self.S_ANGULAR_GAIN = 0.9
         self.S_ANGULAR_MAX = 0.6
         self.S_OFFSET_DEADBAND = 0.05
-        self.S_LINE_LOST_TIMEOUT_SEC = 30.0 #1.2 -> 30.0
+        self.S_LINE_LOST_TIMEOUT_SEC = 25.0 #1.2 -> 30.0 -> 25.0
         self.S_ARRIVAL_TOLERANCE_M = 0.3   # 0.10 -> 0.15 -> 0.2 -> 0.3
         self.S_OFFSET_JUMP_LIMIT = 0.6   # 0.4 -> 0.8 -> 0.6
         self.S_BOTTOM_BAND_HEIGHT_RATIO = 0.3   # 채택된 컨투어의 bounding box 중 하단 몇 %만으로 cx 계산할지
@@ -962,7 +962,7 @@ class DrivingNode(Node):
                 continue
             cx = x + (M['m10'] / M['m00'])
 
-            this_offset = (cx - w / 2.0) / (w / 2.0)
+            this_offset = (cx - ( w / 2.0 + 100)) / (w / 2.0 + 100)
 
             # solidity 계산
             hull = cv2.convexHull(c)
@@ -994,7 +994,7 @@ class DrivingNode(Node):
             candidates.sort(key=lambda t: t[0], reverse=True)
             best_contour = candidates[0][1]
             offset = candidates[0][2]
-            cx_full = (offset * (w / 2.0)) + (w / 2.0)
+            cx_full = (offset * (w / 2.0 + 100)) + (w / 2.0 + 100)
             self.s_last_valid_offset = offset   # 성공했을 때만 "최근 유효 위치" 갱신
 
             # 디버그용: 채택된 컨투어의 밴드 영역 좌표도 구해둠
