@@ -356,7 +356,7 @@ class DrivingNode(Node):
         self.CRANK_LINE_GRACE_SEC = 0.2
         self.CRANK_ARRIVAL_TOLERANCE_M = 0.15
         self.CRANK_LINE_LOST_TIMEOUT_SEC = 30.0
-        self.CRANK_CREEP_DISTANCE_M = 0.055 # 0.07 -> 0.06 -> 0.07 -> 0.06 -> 0.055
+        self.CRANK_CREEP_DISTANCE_M = 0.045 # 0.07 -> 0.06 -> 0.07 -> 0.06 -> 0.055(개별노드실행 때 성공butPM2에서 안 됨) -> 0.45
 
         self.S_ROI_TOP_RATIO = 0.6        # 0.85 -> 0.6 : 하단 40%만 봄
         self.S_LINE_BLACK_THRESHOLD = 60 
@@ -1640,34 +1640,35 @@ class DrivingNode(Node):
         self.crank_turn_pending_delta = target_delta_deg
         self.crank_creep_start_time = self.get_clock().now()
 
-        # ! PM2 CPU문제로 인해 특정시간 만큼이동 대신 odom 받아서 dist까지 이동으로 변경
-        #self.crank_creep_target_sec = self.CRANK_CREEP_DISTANCE_M / self.CRANK_LINEAR_SPEED
-        with self.data_lock:
-            self.crank_creep_start_x = self.odom_x
-            self.crank_creep_start_y = self.odom_y
+        # # ! PM2 CPU문제로 인해 특정시간 만큼이동 대신 odom 받아서 dist까지 이동으로 변경
+        self.crank_creep_target_sec = self.CRANK_CREEP_DISTANCE_M / self.CRANK_LINEAR_SPEED
+        # with self.data_lock:
+        #     self.crank_creep_start_x = self.odom_x
+        #     self.crank_creep_start_y = self.odom_y
 
         self.crank_state = LineCourseState.CREEPING
         self.publish_cmd(self.CRANK_LINEAR_SPEED, 0.0)
-        self.get_logger().info(f'[TRACING_CRANK] CREEPING 시작, target_sec={self.CRANK_CREEP_DISTANCE_M:.3f}')
+        self.get_logger().info(f'[TRACING_CRANK] CREEPING 시작, target_sec={self.crank_creep_target_sec:.3f}')
+        # self.get_logger().info(f'[TRACING_CRANK] CREEPING 시작, target_sec={self.CRANK_CREEP_DISTANCE_M:.3f}')
 
     def _handle_crank_creeping(self):
-        # elapsed = self._elapsed(self.crank_creep_start_time)
-        # if elapsed >= self.crank_creep_target_sec:
-        #     self._start_crank_turn(self.crank_turn_pending_delta)
-
-        x, y = self.odom_x, self.odom_y
-
-        if x is None or self.crank_creep_start_x is None:
-            # 위치 모르면 시간으로 폴백
-            self.get_logger().info(f'x is None or self.crank_creep_start_x is None')
-            elapsed = self._elapsed(self.crank_creep_start_time)
-            if elapsed >= (self.CRANK_CREEP_DISTANCE_M / self.CRANK_LINEAR_SPEED):
-                self._start_crank_turn(self.crank_turn_pending_delta)
-            return
-
-        dist = math.hypot(x - self.crank_creep_start_x, y - self.crank_creep_start_y)
-        if dist >= self.CRANK_CREEP_DISTANCE_M:
+        elapsed = self._elapsed(self.crank_creep_start_time)
+        if elapsed >= self.crank_creep_target_sec:
             self._start_crank_turn(self.crank_turn_pending_delta)
+
+        # x, y = self.odom_x, self.odom_y
+
+        # if x is None or self.crank_creep_start_x is None:
+        #     # 위치 모르면 시간으로 폴백
+        #     self.get_logger().info(f'x is None or self.crank_creep_start_x is None')
+        #     elapsed = self._elapsed(self.crank_creep_start_time)
+        #     if elapsed >= (self.CRANK_CREEP_DISTANCE_M / self.CRANK_LINEAR_SPEED):
+        #         self._start_crank_turn(self.crank_turn_pending_delta)
+        #     return
+
+        # dist = math.hypot(x - self.crank_creep_start_x, y - self.crank_creep_start_y)
+        # if dist >= self.CRANK_CREEP_DISTANCE_M:
+        #     self._start_crank_turn(self.crank_turn_pending_delta)
 
     def _start_crank_turn(self, target_delta_deg: float):
         self.crank_turn_start_yaw = self.current_yaw
