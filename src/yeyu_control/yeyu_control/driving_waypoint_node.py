@@ -925,6 +925,7 @@ class DrivingNode(Node):
         kernel = np.ones((3, 3), np.uint8)
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
 
+        # 덩어리(컨투어) 찾기
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         offset = None
@@ -934,42 +935,49 @@ class DrivingNode(Node):
         candidates = []
         debug_candidates = [] # TODO 디버그용 , 정보 확인
 
+        # 각 덩어리 필터링
         for c in contours:
-            area = cv2.contourArea(c)
-            if area < self.S_LINE_PIXEL_MIN:
+
+            area = cv2.contourArea(c) # 면적
+            if area < self.S_LINE_PIXEL_MIN:   # 면적이 50픽셀 미만은 무시
                 continue
 
-            x, y, cw, ch = cv2.boundingRect(c)
-
-            if y <= 3 or cw > w * 0.5:    # 위에 붙어있고 + 폭이 넓으면 벽/가구
+            x, y, cw, ch = cv2.boundingRect(c) # 위치
+            if y <= 3 or cw > w * 0.5:    # ROI경게선 쪽에 붙어있거나 폭이 화면 절반보다 넓으면 벽/가구
                 reason = 'top_edge' if y <= 3 else 'too_wide'
                 debug_candidates.append((x, y, cw, ch, area, 0.0, reason))  # 탈락 사유 표시
                 continue
 
             # ! 컨투어 전체가 아니라 하단 일부 밴드만으로 cx 계산
-            band_h = max(1, int(ch * self.S_BOTTOM_BAND_HEIGHT_RATIO))
+            band_h = max(1, int(ch * self.S_BOTTOM_BAND_HEIGHT_RATIO))  # ch의 하단 30%만 -> 무게중심 계산할 영역
             band_y_start = y + ch - band_h   # 이 컨투어의 bounding box 내 하단 밴드 시작 y (ROI 좌표계)
 
             # 컨투어를 채운 마스크를 만들고, 그 중 하단 밴드 부분만 잘라서 무게중심 계산
             contour_mask = np.zeros(mask.shape, dtype=np.uint8)    # 아무것도 없는 까만 도화지
             cv2.drawContours(contour_mask, [c], -1, 255, -1)   # 새 도화지에 저 색종이 붙임
-            band_mask = contour_mask[band_y_start:y + ch, x:x + cw]
+            band_mask = contour_mask[band_y_start:y + ch, x:x + cw] # 밴드 영역만 잘라냄
 
             # ? 라인 덩어리 전체의 무게중심을 구함 (오해:특정 y줄을 딱 잘라서 보는게 아님=디버그에 나온 초록가로선의 y좌표와 연결되지않음)
-            # M = cv2.moments(c)                         # 컨투어 전체의 무게중심을 구함
-            M = cv2.moments(band_mask, binaryImage=True) # 컨투어의 S_BOTTOM_BAND_HEIGHT_RATIO부분만 잘라 무게중심 구함
+            # 컨투어의 S_BOTTOM_BAND_HEIGHT_RATIO부분만 잘라 무게중심 구함
+            # M = cv2.moments(c)                        
+            M = cv2.moments(band_mask, binaryImage=True) # M['m00']: 면적 , M['m10']: x좌표의 합
             if M['m00'] == 0:
                 continue
-            cx = x + (M['m10'] / M['m00'])
+            cx = x + (M['m10'] / M['m00'])  
+            #         x좌표 위치 / 면적       => 밴드 영역의 무게중심
 
             this_offset = (cx - ( w / 2.0 + 100)) / (w / 2.0 + 100)
+            # cx = 기준점 → offset = 0   (정중앙, 직진)
+            # cx < 기준점 → offset < 0   (라인이 왼쪽, 왼쪽으로 틀어야 함)
+            # cx > 기준점 → offset > 0   (라인이 오른쪽, 오른쪽으로 틀어야 함)
 
             # solidity 계산
             hull = cv2.convexHull(c)
             hull_area = cv2.contourArea(hull)
             solidity = area / hull_area if hull_area > 0 else 0
             # TODO 디버그 텍스트 보고 주석해체
-            if solidity < 0.5 : # 삐뚤삐뚤하고 구멍 많은 형태는 무시
+            # 삐뚤삐뚤하고 구멍 많은 형태는 무시
+            if solidity < 0.35 :              # 0.5 -> 0.35
                 debug_candidates.append((x, y, cw, ch, area, solidity, 'low_solidity'))
                 continue
 
@@ -989,12 +997,14 @@ class DrivingNode(Node):
             bottom_y = y + ch   # 이 덩어리의 ROI 내 하단 y좌표
             candidates.append((bottom_y, c, this_offset))
 
+        # ? 계산된 this_offset중 합격한 것만 candidates에 담아서 꺼낸게 offset
         if candidates:
             # 바닥에 가장 가까운(=bottom_y가 가장 큰) 덩어리를 라인으로 채택
             candidates.sort(key=lambda t: t[0], reverse=True)
             best_contour = candidates[0][1]
             offset = candidates[0][2]
-            cx_full = (offset * (w / 2.0 + 100)) + (w / 2.0 + 100)
+
+            cx_full = (offset * (w / 2.0 + 100)) + (w / 2.0 + 100) # this_offset 계산 역산 ; offset->다시 픽셀 좌표로 복원(디버그 시각화 용도)
             self.s_last_valid_offset = offset   # 성공했을 때만 "최근 유효 위치" 갱신
 
             # 디버그용: 채택된 컨투어의 밴드 영역 좌표도 구해둠
