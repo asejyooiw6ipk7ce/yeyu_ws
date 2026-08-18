@@ -382,10 +382,11 @@ class DrivingNode(Node):
             return
 
         if not self.tf_buffer.can_transform(
-            'map', 'baselink' , rclpy.time.Time(),
+            'map', 'base_link' , rclpy.time.Time(),
             timeout=Duration(seconds=0.1)
         ):
             self.get_logger().warn('[Nav2] map -> base_link tf 대기중 ')
+            return
         self._start_check_timer.cancel()
         self._pending_start_timer = self.create_timer(0.5, self._do_start)
 
