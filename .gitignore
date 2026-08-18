@@ -5,3 +5,4 @@ __pycache__/
 *.pyc
 .vscode/
 .idea/
+src/yeyu_launch/logs/

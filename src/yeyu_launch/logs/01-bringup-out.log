@@ -1,0 +1,52 @@
+2026-08-14T16:02:21: [yeyu_bringup] robot.launch.py 시작
+2026-08-14T16:02:23: [INFO] [launch]: All log files can be found below /home/yeyu/.ros/log/2026-08-14-16-02-23-934710-YEYU-4926
+2026-08-14T16:02:23: [INFO] [launch]: Default logging verbosity is set to INFO
+2026-08-14T16:02:24: urdf_file_name : turtlebot3_burger.urdf
+2026-08-14T16:02:25: [INFO] [robot_state_publisher-1]: process started with pid [5092]
+2026-08-14T16:02:25: [INFO] [single_coin_d4_node-2]: process started with pid [5097]
+2026-08-14T16:02:25: [INFO] [turtlebot3_ros-3]: process started with pid [5099]
+2026-08-14T16:02:25: [single_coin_d4_node-2] [INFO] [1786690945.968884192] [lidar_node]: version M1CT_TOF
+2026-08-14T16:02:25: [single_coin_d4_node-2] [INFO] [1786690945.973659224] [lidar_node]: Lidar port: /dev/tb3_lidar
+2026-08-14T16:02:25: [robot_state_publisher-1] [INFO] [1786690945.975741962] [robot_state_publisher]: got segment base_footprint
+2026-08-14T16:02:25: [robot_state_publisher-1] [INFO] [1786690945.976197931] [robot_state_publisher]: got segment base_link
+2026-08-14T16:02:25: [robot_state_publisher-1] [INFO] [1786690945.976296484] [robot_state_publisher]: got segment base_scan
+2026-08-14T16:02:25: [robot_state_publisher-1] [INFO] [1786690945.976338409] [robot_state_publisher]: got segment caster_back_link
+2026-08-14T16:02:25: [robot_state_publisher-1] [INFO] [1786690945.976406703] [robot_state_publisher]: got segment imu_link
+2026-08-14T16:02:25: [robot_state_publisher-1] [INFO] [1786690945.976439702] [robot_state_publisher]: got segment wheel_left_link
+2026-08-14T16:02:25: [robot_state_publisher-1] [INFO] [1786690945.976472831] [robot_state_publisher]: got segment wheel_right_link
+2026-08-14T16:02:26: [single_coin_d4_node-2] [INFO] [1786690946.107226276] [lidar_node]: Activated lidar grab thread for port /dev/tb3_lidar
+2026-08-14T16:02:26: [single_coin_d4_node-2] [INFO] [1786690946.107740299] [lidar_node]: Activated lidar publish thread for port /dev/tb3_lidar
+2026-08-14T16:02:26: [single_coin_d4_node-2] [INFO] [1786690946.109031170] [lidar_node]: Lidar status changed for /dev/tb3_lidar : 0 -> 1
+2026-08-14T16:02:26: [turtlebot3_ros-3] [INFO] [1786690946.256279135] [yeyu_hw_node]: Init TurtleBot3 Node Main
+2026-08-14T16:02:26: [turtlebot3_ros-3] [INFO] [1786690946.263507932] [yeyu_hw_node]: Init DynamixelSDKWrapper
+2026-08-14T16:02:26: [turtlebot3_ros-3] [INFO] [1786690946.301502849] [DynamixelSDKWrapper]: Succeeded to open the port(/dev/tb3_opencr)!
+2026-08-14T16:02:26: [turtlebot3_ros-3] [INFO] [1786690946.319126910] [DynamixelSDKWrapper]: Succeeded to change the baudrate!
+2026-08-14T16:02:26: [turtlebot3_ros-3] [INFO] [1786690946.360227443] [yeyu_hw_node]: Start Calibration of Gyro
+2026-08-14T16:02:27: [single_coin_d4_node-2] [INFO] [1786690947.217308235] [lidar_node]: TOF version lidar start for /dev/tb3_lidar
+2026-08-14T16:02:31: [turtlebot3_ros-3] [INFO] [1786690951.368946250] [yeyu_hw_node]: Calibration End
+2026-08-14T16:02:31: [turtlebot3_ros-3] [INFO] [1786690951.369156800] [yeyu_hw_node]: Add Motors
+2026-08-14T16:02:31: [turtlebot3_ros-3] [INFO] [1786690951.370080774] [yeyu_hw_node]: Add Wheels
+2026-08-14T16:02:31: [turtlebot3_ros-3] [INFO] [1786690951.371293888] [yeyu_hw_node]: Add Sensors
+2026-08-14T16:02:31: [turtlebot3_ros-3] [INFO] [1786690951.381983534] [yeyu_hw_node]: Succeeded to create battery state publisher
+2026-08-14T16:02:31: [turtlebot3_ros-3] [INFO] [1786690951.391779056] [yeyu_hw_node]: Succeeded to create imu publisher
+2026-08-14T16:02:31: [turtlebot3_ros-3] [INFO] [1786690951.402525626] [yeyu_hw_node]: Succeeded to create sensor state publisher
+2026-08-14T16:02:31: [turtlebot3_ros-3] [INFO] [1786690951.413554873] [yeyu_hw_node]: Succeeded to create joint state publisher
+2026-08-14T16:02:31: [turtlebot3_ros-3] [INFO] [1786690951.413726276] [yeyu_hw_node]: Add Devices
+2026-08-14T16:02:31: [turtlebot3_ros-3] [INFO] [1786690951.413809273] [yeyu_hw_node]: Succeeded to create motor power server
+2026-08-14T16:02:31: [turtlebot3_ros-3] [INFO] [1786690951.417321971] [yeyu_hw_node]: Succeeded to create reset server
+2026-08-14T16:02:31: [turtlebot3_ros-3] [INFO] [1786690951.427237101] [yeyu_hw_node]: Succeeded to create sound server
+2026-08-14T16:02:31: [turtlebot3_ros-3] [INFO] [1786690951.431317487] [yeyu_hw_node]: Run!
+2026-08-14T16:02:31: [turtlebot3_ros-3] [INFO] [1786690951.580108456] [diff_drive_controller]: Init Odometry
+2026-08-14T16:02:31: [turtlebot3_ros-3] [INFO] [1786690951.619543871] [diff_drive_controller]: 김예은 메롱!
+2026-08-14T16:06:47: [WARNING] [launch]: user interrupted with ctrl-c (SIGINT)
+2026-08-14T16:06:47: [turtlebot3_ros-3] [INFO] [1786691207.761586706] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+2026-08-14T16:06:47: [INFO] [turtlebot3_ros-3]: sending signal 'SIGINT' to process[turtlebot3_ros-3]
+2026-08-14T16:06:47: [INFO] [single_coin_d4_node-2]: sending signal 'SIGINT' to process[single_coin_d4_node-2]
+2026-08-14T16:06:47: [INFO] [robot_state_publisher-1]: sending signal 'SIGINT' to process[robot_state_publisher-1]
+2026-08-14T16:06:47: [single_coin_d4_node-2] [INFO] [1786691207.765470789] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+2026-08-14T16:06:47: [ERROR] [single_coin_d4_node-2]: process has died [pid 5097, exit code -2, cmd '/home/yeyu/turtlebot3_ws/install/coin_d4_driver/lib/coin_d4_driver/single_coin_d4_node --ros-args -r __ns:=/ --params-file /home/yeyu/turtlebot3_ws/install/coin_d4_driver/share/coin_d4_driver/params/single_lidar_node.yaml'].
+2026-08-14T16:06:47: [ERROR] [turtlebot3_ros-3]: process has died [pid 5099, exit code -2, cmd '/home/yeyu/yeyu_ws/install/yeyu_hw_node/lib/yeyu_hw_node/turtlebot3_ros -i /dev/tb3_opencr --ros-args -r __ns:=/ --params-file /home/yeyu/yeyu_ws/install/yeyu_bringup/share/yeyu_bringup/param/humble/burger.yaml --params-file /tmp/launch_params_gga9lvhn'].
+2026-08-14T16:06:47: [robot_state_publisher-1] [INFO] [1786691207.767074032] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+2026-08-14T16:06:47: [single_coin_d4_node-2] [INFO] [1786691207.830866318] [lidar_node]: Deactivated lidar publish thread for port /dev/tb3_lidar
+2026-08-14T16:06:47: [robot_state_publisher-1] [INFO] [1786691207.877626047] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+2026-08-14T16:06:48: [INFO] [robot_state_publisher-1]: process has finished cleanly [pid 5092]

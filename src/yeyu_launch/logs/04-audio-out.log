@@ -1,0 +1,20 @@
+2026-08-14T14:20:54: [04_audio] USB 스피커 설정 실행: /home/yeyu/yeyu_ws/bin/set_usb_speaker.sh
+2026-08-14T14:20:54: USB 스피커(card 1)를 기본 출력으로 설정했습니다.
+2026-08-14T14:20:54: [04_audio] audio_output_node 시작
+2026-08-14T14:33:39: [ros2run]: Process exited with failure 1
+2026-08-14T14:42:20: [04_audio] USB 스피커 설정 실행: /home/yeyu/yeyu_ws/bin/set_usb_speaker.sh
+2026-08-14T14:42:20: USB 스피커(card 1)를 기본 출력으로 설정했습니다.
+2026-08-14T14:42:20: [04_audio] audio_output_node 시작
+2026-08-14T14:43:00: [ros2run]: Process exited with failure 1
+2026-08-14T15:56:07: [04_audio] USB 스피커 설정 실행: /home/yeyu/yeyu_ws/bin/set_usb_speaker.sh
+2026-08-14T15:56:07: USB 스피커(card 1)를 기본 출력으로 설정했습니다.
+2026-08-14T15:56:07: [04_audio] audio_output_node 시작
+2026-08-14T15:59:49: [ros2run]: Process exited with failure 1
+2026-08-14T16:00:09: [04_audio] USB 스피커 설정 실행: /home/yeyu/yeyu_ws/bin/set_usb_speaker.sh
+2026-08-14T16:00:09: USB 스피커(card 1)를 기본 출력으로 설정했습니다.
+2026-08-14T16:00:09: [04_audio] audio_output_node 시작
+2026-08-14T16:01:12: [ros2run]: Process exited with failure 1
+2026-08-14T16:02:15: [04_audio] USB 스피커 설정 실행: /home/yeyu/yeyu_ws/bin/set_usb_speaker.sh
+2026-08-14T16:02:16: USB 스피커(card 1)를 기본 출력으로 설정했습니다.
+2026-08-14T16:02:16: [04_audio] audio_output_node 시작
+2026-08-14T16:06:50: [ros2run]: Process exited with failure 1

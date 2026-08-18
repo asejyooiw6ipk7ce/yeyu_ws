@@ -1,0 +1,93 @@
+2026-08-14T14:20:54: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/06_driving.sh: line 7: /home/yeyu/yeyu_ws/deploy/lib/wait_ros.sh: No such file or directory
+2026-08-14T14:20:54: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/06_driving.sh: line 8: source_ros_env: command not found
+2026-08-14T14:20:54: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/06_driving.sh: line 10: wait_for_action: command not found
+2026-08-14T14:21:06: [INFO] [1786684866.605167193] [driving_node]: CameraInfo received. ArUco pose estimation enabled.
+2026-08-14T14:21:06: [INFO] [1786684866.608939341] [driving_node]: [set_speed] 속도 변경 실패
+2026-08-14T14:21:06: [INFO] [1786684866.823624560] [driving_node]: [LED] (1.0, 0.0, 0.0)점등 (START)
+2026-08-14T14:21:06: [INFO] [1786684866.846513424] [driving_node]: [TTS] 주행을 시작합니다.
+2026-08-14T14:21:06: [INFO] [1786684866.856768901] [driving_node]: [send_waypoint] target={'name': 'wp1', 'x': -0.4, 'y': -4.223, 'yaw': -1.5}
+2026-08-14T14:21:08: [WARN] [1786684868.625864627] [driving_node]: 경로 목표가 거부됨
+2026-08-14T14:33:40: Traceback (most recent call last):
+2026-08-14T14:33:40:   File "/home/yeyu/yeyu_ws/install/yeyu_control/lib/yeyu_control/driving_waypoint_node", line 33, in <module>
+2026-08-14T14:33:40:     sys.exit(load_entry_point('yeyu-control==0.0.0', 'console_scripts', 'driving_waypoint_node')())
+2026-08-14T14:33:40:   File "/home/yeyu/yeyu_ws/install/yeyu_control/lib/python3.10/site-packages/yeyu_control/driving_waypoint_node.py", line 1128, in main
+2026-08-14T14:33:40:     node.destroy_node()
+2026-08-14T14:33:40:   File "/home/yeyu/yeyu_ws/install/yeyu_control/lib/python3.10/site-packages/yeyu_control/driving_waypoint_node.py", line 1114, in destroy_node
+2026-08-14T14:33:40:     self.cmd_pub.publish(Twist())
+2026-08-14T14:33:40:   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/publisher.py", line 70, in publish
+2026-08-14T14:33:40:     self.__publisher.publish(msg)
+2026-08-14T14:33:40: rclpy._rclpy_pybind11.RCLError: Failed to publish: publisher's context is invalid, at ./src/rcl/publisher.c:389
+2026-08-14T14:42:20: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/06_driving.sh: line 7: /home/yeyu/yeyu_ws/deploy/lib/wait_ros.sh: No such file or directory
+2026-08-14T14:42:20: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/06_driving.sh: line 8: source_ros_env: command not found
+2026-08-14T14:42:20: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/06_driving.sh: line 10: wait_for_action: command not found
+2026-08-14T14:42:26: [WARN] [1786686146.900701421] [driving_node]: controller_server 파라미터 서비스 응답 없음
+2026-08-14T14:42:27: [INFO] [1786686147.711988730] [driving_node]: [LED] (1.0, 0.0, 0.0)점등 (START)
+2026-08-14T14:42:27: [INFO] [1786686147.720912076] [driving_node]: [TTS] 주행을 시작합니다.
+2026-08-14T14:42:27: [INFO] [1786686147.726870245] [driving_node]: [send_waypoint] target={'name': 'wp1', 'x': -0.4, 'y': -4.223, 'yaw': -1.5}
+2026-08-14T14:42:29: [WARN] [1786686149.554482889] [driving_node]: 경로 목표가 거부됨
+2026-08-14T14:43:00: Traceback (most recent call last):
+2026-08-14T14:43:00:   File "/home/yeyu/yeyu_ws/install/yeyu_control/lib/yeyu_control/driving_waypoint_node", line 33, in <module>
+2026-08-14T14:43:00:     sys.exit(load_entry_point('yeyu-control==0.0.0', 'console_scripts', 'driving_waypoint_node')())
+2026-08-14T14:43:00:   File "/home/yeyu/yeyu_ws/install/yeyu_control/lib/python3.10/site-packages/yeyu_control/driving_waypoint_node.py", line 1128, in main
+2026-08-14T14:43:00:     node.destroy_node()
+2026-08-14T14:43:00:   File "/home/yeyu/yeyu_ws/install/yeyu_control/lib/python3.10/site-packages/yeyu_control/driving_waypoint_node.py", line 1114, in destroy_node
+2026-08-14T14:43:00:     self.cmd_pub.publish(Twist())
+2026-08-14T14:43:00:   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/publisher.py", line 70, in publish
+2026-08-14T14:43:00:     self.__publisher.publish(msg)
+2026-08-14T14:43:00: rclpy._rclpy_pybind11.RCLError: Failed to publish: publisher's context is invalid, at ./src/rcl/publisher.c:389
+2026-08-14T15:56:07: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/06_driving.sh: line 7: /home/yeyu/yeyu_ws/deploy/lib/wait_ros.sh: No such file or directory
+2026-08-14T15:56:07: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/06_driving.sh: line 8: source_ros_env: command not found
+2026-08-14T15:56:07: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/06_driving.sh: line 10: wait_for_action: command not found
+2026-08-14T15:56:20: [INFO] [1786690580.743578739] [driving_node]: [set_speed] 속도 변경 실패
+2026-08-14T15:56:20: [INFO] [1786690580.923608292] [driving_node]: [LED] (1.0, 0.0, 0.0)점등 (START)
+2026-08-14T15:56:20: [INFO] [1786690580.949244473] [driving_node]: [TTS] 주행을 시작합니다.
+2026-08-14T15:56:20: [INFO] [1786690580.953550397] [driving_node]: [send_waypoint] target={'name': 'wp1', 'x': -0.4, 'y': -4.223, 'yaw': -1.5}
+2026-08-14T15:56:22: [WARN] [1786690582.994203913] [driving_node]: 경로 목표가 거부됨
+2026-08-14T15:59:49: Traceback (most recent call last):
+2026-08-14T15:59:49:   File "/home/yeyu/yeyu_ws/install/yeyu_control/lib/yeyu_control/driving_waypoint_node", line 33, in <module>
+2026-08-14T15:59:49:     sys.exit(load_entry_point('yeyu-control==0.0.0', 'console_scripts', 'driving_waypoint_node')())
+2026-08-14T15:59:49:   File "/home/yeyu/yeyu_ws/install/yeyu_control/lib/python3.10/site-packages/yeyu_control/driving_waypoint_node.py", line 1128, in main
+2026-08-14T15:59:49:     node.destroy_node()
+2026-08-14T15:59:49:   File "/home/yeyu/yeyu_ws/install/yeyu_control/lib/python3.10/site-packages/yeyu_control/driving_waypoint_node.py", line 1114, in destroy_node
+2026-08-14T15:59:49:     self.cmd_pub.publish(Twist())
+2026-08-14T15:59:49:   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/publisher.py", line 70, in publish
+2026-08-14T15:59:49:     self.__publisher.publish(msg)
+2026-08-14T15:59:49: rclpy._rclpy_pybind11.RCLError: Failed to publish: publisher's context is invalid, at ./src/rcl/publisher.c:389
+2026-08-14T16:00:09: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/06_driving.sh: line 7: /home/yeyu/yeyu_ws/deploy/lib/wait_ros.sh: No such file or directory
+2026-08-14T16:00:09: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/06_driving.sh: line 8: source_ros_env: command not found
+2026-08-14T16:00:09: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/06_driving.sh: line 10: wait_for_action: command not found
+2026-08-14T16:00:16: [INFO] [1786690816.721830226] [driving_node]: [set_speed] 속도 변경 실패
+2026-08-14T16:00:16: [INFO] [1786690816.732134350] [driving_node]: CameraInfo received. ArUco pose estimation enabled.
+2026-08-14T16:00:16: [INFO] [1786690816.888040952] [driving_node]: [LED] (1.0, 0.0, 0.0)점등 (START)
+2026-08-14T16:00:16: [INFO] [1786690816.891728504] [driving_node]: [TTS] 주행을 시작합니다.
+2026-08-14T16:00:16: [INFO] [1786690816.894888313] [driving_node]: [send_waypoint] target={'name': 'wp1', 'x': -0.4, 'y': -4.223, 'yaw': -1.5}
+2026-08-14T16:00:19: [WARN] [1786690819.357581283] [driving_node]: 경로 목표가 거부됨
+2026-08-14T16:01:11: Traceback (most recent call last):
+2026-08-14T16:01:11:   File "/home/yeyu/yeyu_ws/install/yeyu_control/lib/yeyu_control/driving_waypoint_node", line 33, in <module>
+2026-08-14T16:01:11:     sys.exit(load_entry_point('yeyu-control==0.0.0', 'console_scripts', 'driving_waypoint_node')())
+2026-08-14T16:01:11:   File "/home/yeyu/yeyu_ws/install/yeyu_control/lib/python3.10/site-packages/yeyu_control/driving_waypoint_node.py", line 1128, in main
+2026-08-14T16:01:11:     node.destroy_node()
+2026-08-14T16:01:11:   File "/home/yeyu/yeyu_ws/install/yeyu_control/lib/python3.10/site-packages/yeyu_control/driving_waypoint_node.py", line 1114, in destroy_node
+2026-08-14T16:01:11:     self.cmd_pub.publish(Twist())
+2026-08-14T16:01:11:   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/publisher.py", line 70, in publish
+2026-08-14T16:01:11:     self.__publisher.publish(msg)
+2026-08-14T16:01:11: rclpy._rclpy_pybind11.RCLError: Failed to publish: publisher's context is invalid, at ./src/rcl/publisher.c:389
+2026-08-14T16:02:15: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/06_driving.sh: line 7: /home/yeyu/yeyu_ws/deploy/lib/wait_ros.sh: No such file or directory
+2026-08-14T16:02:16: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/06_driving.sh: line 8: source_ros_env: command not found
+2026-08-14T16:02:16: /home/yeyu/yeyu_ws/src/yeyu_launch/nodes/06_driving.sh: line 10: wait_for_action: command not found
+2026-08-14T16:02:24: [INFO] [1786690944.496394384] [driving_node]: CameraInfo received. ArUco pose estimation enabled.
+2026-08-14T16:02:24: [INFO] [1786690944.540552719] [driving_node]: [set_speed] 속도 변경 실패
+2026-08-14T16:02:24: [INFO] [1786690944.885254732] [driving_node]: [LED] (1.0, 0.0, 0.0)점등 (START)
+2026-08-14T16:02:24: [INFO] [1786690944.909682973] [driving_node]: [TTS] 주행을 시작합니다.
+2026-08-14T16:02:24: [INFO] [1786690944.927740151] [driving_node]: [send_waypoint] target={'name': 'wp1', 'x': -0.4, 'y': -4.223, 'yaw': -1.5}
+2026-08-14T16:02:28: [WARN] [1786690948.244056100] [driving_node]: 경로 목표가 거부됨
+2026-08-14T16:06:51: Traceback (most recent call last):
+2026-08-14T16:06:51:   File "/home/yeyu/yeyu_ws/install/yeyu_control/lib/yeyu_control/driving_waypoint_node", line 33, in <module>
+2026-08-14T16:06:51:     sys.exit(load_entry_point('yeyu-control==0.0.0', 'console_scripts', 'driving_waypoint_node')())
+2026-08-14T16:06:51:   File "/home/yeyu/yeyu_ws/install/yeyu_control/lib/python3.10/site-packages/yeyu_control/driving_waypoint_node.py", line 1128, in main
+2026-08-14T16:06:51:     node.destroy_node()
+2026-08-14T16:06:51:   File "/home/yeyu/yeyu_ws/install/yeyu_control/lib/python3.10/site-packages/yeyu_control/driving_waypoint_node.py", line 1114, in destroy_node
+2026-08-14T16:06:51:     self.cmd_pub.publish(Twist())
+2026-08-14T16:06:51:   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/publisher.py", line 70, in publish
+2026-08-14T16:06:51:     self.__publisher.publish(msg)
+2026-08-14T16:06:51: rclpy._rclpy_pybind11.RCLError: Failed to publish: publisher's context is invalid, at ./src/rcl/publisher.c:389

@@ -9,7 +9,7 @@ source_ros_env() {
     source /opt/ros/humble/setup.bash
     source "$HOME/yeyu_ws/install/setup.bash"
     export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-    export CYCLONEDDS_URI=file:///tmp/turtlebot3_cyclonedds_${USER}.xml
+    export CYCLONEDDS_URI
     set -u    # 다시 켜서 나머지 스크립트는 안전하게 유지
 }
 
@@ -29,6 +29,25 @@ wait_for_topic() {
         fi
     done
     echo "[wait] 확인됨: ${topic}"
+    return 0
+}
+# 사용법: wait_for_tf map base_link 60
+wait_for_tf() {
+    local target_frame="$1"
+    local source_frame="$2"
+    local timeout_sec="${3:-60}"
+    local waited=0
+
+    echo "[wait] tf 대기 중: ${target_frame} -> ${source_frame} (최대 ${timeout_sec}초)"
+    until ros2 run tf2_ros tf2_echo "${target_frame}" "${source_frame}" --once > /dev/null 2>&1; do
+        sleep 1
+        waited=$((waited + 1))
+        if [ "${waited}" -ge "${timeout_sec}" ]; then
+            echo "[wait] 타임아웃: ${target_frame} -> ${source_frame} tf가 ${timeout_sec}초 내에 나타나지 않았습니다. 계속 진행합니다."
+            return 1
+        fi
+    done
+    echo "[wait] 확인됨: ${target_frame} -> ${source_frame}"
     return 0
 }
 
