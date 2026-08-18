@@ -8,6 +8,8 @@ source_ros_env() {
     set +u    # ROS2 setup.bash 내부의 미정의 변수 참조를 허용하기 위해 잠시 해제
     source /opt/ros/humble/setup.bash
     source "$HOME/yeyu_ws/install/setup.bash"
+    export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+    export CYCLONEDDS_URI=file:///tmp/turtlebot3_cyclonedds_${USER}.xml
     set -u    # 다시 켜서 나머지 스크립트는 안전하게 유지
 }
 
