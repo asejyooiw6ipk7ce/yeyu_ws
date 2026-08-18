@@ -216,6 +216,8 @@ class DrivingNode(Node):
         self.crank_turn_pending_delta = 0.0
         self.crank_creep_start_time = None
         self.crank_creep_target_sec = 0.0
+        self.crank_creep_start_x = None
+        self.crank_creep_start_y = None
 
         self.s_line_offset = None
         self.s_line_last_seen_time = self.get_clock().now() - Duration(seconds=999.0)
@@ -951,8 +953,8 @@ class DrivingNode(Node):
 
             x, y, cw, ch = cv2.boundingRect(c)
 
-            if y <= 3 or cw > w * 0.5:    # 위에 붙어있고 + 폭이 넓으면 벽/가구
-                reason = 'top_edge' if y <= 3 else 'too_wide'
+            if cw > w * 0.5:    # 위에 붙어있고 + 폭이 넓으면 벽/가구
+                reason = 'too_wide'
                 debug_candidates.append((x, y, cw, ch, area, 0.0, reason))  # 탈락 사유 표시
                 continue
 
@@ -974,15 +976,6 @@ class DrivingNode(Node):
 
             this_offset = (cx - w / 2.0) / (w / 2.0)
 
-            # solidity 계산
-            hull = cv2.convexHull(c)
-            hull_area = cv2.contourArea(hull)
-            solidity = area / hull_area if hull_area > 0 else 0
-            # TODO 디버그 텍스트 보고 주석해체
-            if solidity < 0.5 : # 삐뚤삐뚤하고 구멍 많은 형태는 무시
-                debug_candidates.append((x, y, cw, ch, area, solidity, 'low_solidity'))
-                continue
-
             rejected_reason = None  
 
             # 직전에 알던 라인 위치와 너무 멀면 후보에서 제외
@@ -991,7 +984,7 @@ class DrivingNode(Node):
                     rejected_reason = 'jump_limit' # TODO 디버그용 추가
                     #continue #TODO 디버그용 주석처리
 
-            debug_candidates.append((x, y, cw, ch, area, solidity, rejected_reason))  # TODO 디버그용 출력
+            debug_candidates.append((x, y, cw, ch, area, rejected_reason))  # TODO 디버그용 출력
             if rejected_reason is not None:
                 continue    
 
@@ -1625,14 +1618,34 @@ class DrivingNode(Node):
     def _start_crank_creep_forward(self, target_delta_deg: float):
         self.crank_turn_pending_delta = target_delta_deg
         self.crank_creep_start_time = self.get_clock().now()
-        self.crank_creep_target_sec = self.CRANK_CREEP_DISTANCE_M / self.CRANK_LINEAR_SPEED
+
+        # ! PM2 CPU문제로 인해 특정시간 만큼이동 대신 odom 받아서 dist까지 이동으로 변경
+        #self.crank_creep_target_sec = self.CRANK_CREEP_DISTANCE_M / self.CRANK_LINEAR_SPEED
+        with self.data_lock:
+            self.crank_creep_start_x = self.current_x
+            self.crank_creep_start_y = self.current_y
+
         self.crank_state = LineCourseState.CREEPING
         self.publish_cmd(self.CRANK_LINEAR_SPEED, 0.0)
         self.get_logger().info(f'[TRACING_CRANK] CREEPING 시작, target_sec={self.crank_creep_target_sec:.3f}')
 
     def _handle_crank_creeping(self):
-        elapsed = self._elapsed(self.crank_creep_start_time)
-        if elapsed >= self.crank_creep_target_sec:
+        # elapsed = self._elapsed(self.crank_creep_start_time)
+        # if elapsed >= self.crank_creep_target_sec:
+        #     self._start_crank_turn(self.crank_turn_pending_delta)
+
+        with self.data_lock:
+            x, y = self.current_x, self.current_y
+
+        if x is None or self.crank_creep_start_x is None:
+            # 위치 모르면 시간으로 폴백
+            elapsed = self._elapsed(self.crank_creep_start_time)
+            if elapsed >= (self.CRANK_CREEP_DISTANCE_M / self.CRANK_LINEAR_SPEED):
+                self._start_crank_turn(self.crank_turn_pending_delta)
+            return
+
+        dist = math.hypot(x - self.crank_creep_start_x, y - self.crank_creep_start_y)
+        if dist >= self.CRANK_CREEP_DISTANCE_M:
             self._start_crank_turn(self.crank_turn_pending_delta)
 
     def _start_crank_turn(self, target_delta_deg: float):
