@@ -218,6 +218,8 @@ class DrivingNode(Node):
         self.crank_creep_target_sec = 0.0
         self.crank_creep_start_x = None
         self.crank_creep_start_y = None
+        self.odom_x = None
+        self.odom_y = None
 
         self.s_line_offset = None
         self.s_line_last_seen_time = self.get_clock().now() - Duration(seconds=999.0)
@@ -1037,6 +1039,8 @@ class DrivingNode(Node):
             2 * (q.w * q.z + q.x * q.y),
             1 - 2 * (q.y * q.y + q.z * q.z))
         self.current_linear_x = msg.twist.twist.linear.x   # [수정] accel_zone_check_loop가 쓸 최신 속도 저장
+        self.odom_x = msg.pose.pose.position.x
+        self.odom_y = msg.pose.pose.position.y
 
     def accel_zone_check_loop(self):
         if self.is_estopped:
@@ -1639,8 +1643,8 @@ class DrivingNode(Node):
         # ! PM2 CPU문제로 인해 특정시간 만큼이동 대신 odom 받아서 dist까지 이동으로 변경
         #self.crank_creep_target_sec = self.CRANK_CREEP_DISTANCE_M / self.CRANK_LINEAR_SPEED
         with self.data_lock:
-            self.crank_creep_start_x = self.current_x
-            self.crank_creep_start_y = self.current_y
+            self.crank_creep_start_x = self.odom_x
+            self.crank_creep_start_y = self.odom_y
 
         self.crank_state = LineCourseState.CREEPING
         self.publish_cmd(self.CRANK_LINEAR_SPEED, 0.0)
@@ -1651,8 +1655,7 @@ class DrivingNode(Node):
         # if elapsed >= self.crank_creep_target_sec:
         #     self._start_crank_turn(self.crank_turn_pending_delta)
 
-        with self.data_lock:
-            x, y = self.current_x, self.current_y
+        x, y = self.odom_x, self.odom_y
 
         if x is None or self.crank_creep_start_x is None:
             # 위치 모르면 시간으로 폴백
