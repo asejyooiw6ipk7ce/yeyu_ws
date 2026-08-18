@@ -1001,7 +1001,7 @@ class DrivingNode(Node):
                     rejected_reason = 'jump_limit' # TODO 디버그용 추가
                     #continue #TODO 디버그용 주석처리
 
-            debug_candidates.append((x, y, cw, ch, area, rejected_reason))  # TODO 디버그용 출력
+            debug_candidates.append((x, y, cw, ch, area, 0.0, rejected_reason))  # TODO 디버그용 출력
             if rejected_reason is not None:
                 continue    
 
