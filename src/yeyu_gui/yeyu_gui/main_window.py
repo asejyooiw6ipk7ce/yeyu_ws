@@ -304,15 +304,15 @@ class MainWindow(QMainWindow):
         card, self.obstacle_value = self._make_card('장애물 최소거리')
         layout.addWidget(card, 0, 3)
 
-        card, self.waypoint_value = self._make_card('현재 웨이포인트')
-        layout.addWidget(card, 0, 4)
+        # card, self.waypoint_value = self._make_card('현재 웨이포인트')
+        # layout.addWidget(card, 0, 4)
 
 
         layout.setColumnStretch(0, 1)   # [추가] 현재 모드
         layout.setColumnStretch(1, 1)   # [추가] 현재 위치
         layout.setColumnStretch(2, 1)   # [추가] 배터리 — 숫자를 낮추면 더 좁아짐
         layout.setColumnStretch(3, 1)   # [추가] 장애물 최소거리
-        layout.setColumnStretch(4, 1)   # [추가] 현재 웨이포인트``
+        # layout.setColumnStretch(4, 1)   # [추가] 현재 웨이포인트``
 
         return layout
     # ================= 카메라 =================
@@ -320,7 +320,7 @@ class MainWindow(QMainWindow):
         frame = QFrame()
         frame.setObjectName('camera')
         frame.setStyleSheet(CAMERA_STYLE)
-        frame.setFixedSize(600, 340) 
+        frame.setFixedSize(480, 360) 
         outer = QVBoxLayout(frame)
         outer.setContentsMargins(18, 14, 18, 14)
         outer.setSpacing(10)
@@ -356,7 +356,7 @@ class MainWindow(QMainWindow):
 
         # ---- 미니맵 추가 ----
         self.minimap = MiniMapWidget()
-        self.minimap.setFixedSize(340, 340)
+        self.minimap.setFixedSize(480, 360)
         layout.addWidget(self.minimap)
         # --------------------
 
@@ -593,7 +593,7 @@ class MainWindow(QMainWindow):
             return
 
         self.mode_value.setText(MODE_LABELS.get(mode, mode or '--'))
-        self.waypoint_value.setText(f'wp{wp_index + 1} / {TOTAL_WAYPOINTS}')
+        # self.waypoint_value.setText(f'wp{wp_index + 1} / {TOTAL_WAYPOINTS}')
 
 
         # [추가] 모드가 바뀌면 오른쪽 디버그 패널도 그에 맞게 전환
@@ -624,7 +624,7 @@ class MainWindow(QMainWindow):
             self.stage_dots[mode].parent().setToolTip(reason)
 
         if result == 'FAIL':
-            self._append_event(mode, f'{reason} → 재시험을 권장합니다.')
+            self._append_event(mode, f'{reason}')
 
         active_target = RETRY_TARGETS.get(self.active_trajectory, (None,))[0]
         if result in ('PASS', 'FAIL') and mode == active_target:
