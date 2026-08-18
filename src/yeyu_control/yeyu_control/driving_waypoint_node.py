@@ -426,6 +426,7 @@ class DrivingNode(Node):
     # ================= 재시험 서비스 콜백 =================
     def on_start_retry_request(self, request, response):
         target = request.target
+        self.get_logger().warn(f'[RETRY-DEBUG] target={target!r}, run_phase={self.run_phase}, is_estopped={self.is_estopped}')
 
         if target not in RETRY_ENTRY:
             response.accepted = False
@@ -1835,7 +1836,7 @@ class DrivingNode(Node):
             msg.result = result.name
             msg.reason = ''
             msg.wp_index = self.wp_index
-            self.status_pub.publish(msg)
+            # self.status_pub.publish(msg)
 
     def _announce_final_result(self):
         self.publish_final_result()

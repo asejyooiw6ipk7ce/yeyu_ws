@@ -17,7 +17,7 @@ from yeyu_gui.ros_bridge import DashboardRosNode, NO_OBSTACLE_READING
 
 TOTAL_WAYPOINTS = 11
 
-STAGE_ROWS = ['NAV_WAYPOINT', 'TRACING_CRANK', 'TRACING_S', 'SIGNAL_WAIT', 'ACCEL_ZONE', 'PARKING', 'OBSTACLE']   # [수정]
+STAGE_ROWS = ['NAV_WAYPOINT', 'TRACING_CRANK', 'TRACING_S', 'SIGNAL_WAIT', 'ACCEL_ZONE', 'PARKING', ]   # [수정]
 STAGE_LABELS = {
     'NAV_WAYPOINT': '경로 주행',
     'TRACING_CRANK': '크랭크 코스',   
@@ -25,7 +25,6 @@ STAGE_LABELS = {
     'SIGNAL_WAIT': '신호대기',
     'ACCEL_ZONE': '가속구간',
     'PARKING': '직각주차',
-    'OBSTACLE': '장애물 감지',
     'COMPLETE': '주행 완료',
 }
 
@@ -356,7 +355,7 @@ class MainWindow(QMainWindow):
 
         # ---- 미니맵 추가 ----
         self.minimap = MiniMapWidget()
-        self.minimap.setFixedSize(480, 360)
+        self.minimap.setFixedSize(360, 360)
         layout.addWidget(self.minimap)
         # --------------------
 
@@ -705,6 +704,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, '비상정지 실패', message)
 
     def _on_trajectory_clicked(self, idx: int, target: str):
+        print(f'[DEBUG] 버튼 클릭, idx={idx}, target={target!r}', flush=True)
         confirm = QMessageBox.question(
             self, '재시험 시작 확인', f'{RETRY_TARGETS[idx][1]}을(를) 시작하시겠습니까?',
             QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
