@@ -195,11 +195,13 @@ class DashboardRosNode(Node):
             self.signals.estop_result.emit(False, str(e))
 
     def call_start_retry(self, target: str):
+        self.get_logger().info(f'[DEBUG] call_start_retry target={target!r}')
         if not self.retry_client.service_is_ready():
             self.signals.retry_result.emit(target, False, '/start_retry 서비스에 연결할 수 없습니다.')
             return
         req = StartRetry.Request()
         req.target = target
+        self.get_logger().info(f'[DEBUG] req.target={req.target!r}')
         future = self.retry_client.call_async(req)
         future.add_done_callback(lambda f: self._on_retry_response(target, f))
 
