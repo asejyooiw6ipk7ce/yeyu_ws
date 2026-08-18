@@ -984,14 +984,14 @@ class DrivingNode(Node):
 
             this_offset = (cx - w / 2.0 + 100) / (w / 2.0+ 100)
 
-            # solidity 계산
-            hull = cv2.convexHull(c)
-            hull_area = cv2.contourArea(hull)
-            solidity = area / hull_area if hull_area > 0 else 0
-            # TODO 디버그 텍스트 보고 주석해체
-            if solidity < 0.25: # 삐뚤삐뚤하고 구멍 많은 형태는 무시
-                debug_candidates.append((x, y, cw, ch, area, solidity, 'low_solidity'))
-                continue
+            # # solidity 계산
+            # hull = cv2.convexHull(c)
+            # hull_area = cv2.contourArea(hull)
+            # solidity = area / hull_area if hull_area > 0 else 0
+            # # TODO 디버그 텍스트 보고 주석해체
+            # if solidity < 0.25: # 삐뚤삐뚤하고 구멍 많은 형태는 무시
+            #     debug_candidates.append((x, y, cw, ch, area,'low_solidity'))
+            #     continue
 
             rejected_reason = None  
 
@@ -1644,7 +1644,7 @@ class DrivingNode(Node):
 
         self.crank_state = LineCourseState.CREEPING
         self.publish_cmd(self.CRANK_LINEAR_SPEED, 0.0)
-        self.get_logger().info(f'[TRACING_CRANK] CREEPING 시작, target_sec={self.crank_creep_target_sec:.3f}')
+        self.get_logger().info(f'[TRACING_CRANK] CREEPING 시작, target_sec={self.CRANK_CREEP_DISTANCE_M:.3f}')
 
     def _handle_crank_creeping(self):
         # elapsed = self._elapsed(self.crank_creep_start_time)
@@ -1656,6 +1656,7 @@ class DrivingNode(Node):
 
         if x is None or self.crank_creep_start_x is None:
             # 위치 모르면 시간으로 폴백
+            self.get_logger().info(f'x is None or self.crank_creep_start_x is None')
             elapsed = self._elapsed(self.crank_creep_start_time)
             if elapsed >= (self.CRANK_CREEP_DISTANCE_M / self.CRANK_LINEAR_SPEED):
                 self._start_crank_turn(self.crank_turn_pending_delta)
