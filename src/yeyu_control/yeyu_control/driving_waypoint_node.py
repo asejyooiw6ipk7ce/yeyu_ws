@@ -283,8 +283,8 @@ class DrivingNode(Node):
 
         self.s_course_timer = None
         self.vision_timer = self.create_timer(self.timer_period, self.camera_processing_loop)
-        self.nav_result_timer = self.create_timer(0.2, self._nav_result_loop)
-        
+        self.nav_result_timer = self.create_timer(self.timer_period, self._nav_result_loop)
+
 
     # ================= 파라미터 =================
     def _declare_parking_parameters(self):
@@ -722,8 +722,9 @@ class DrivingNode(Node):
         
         if self.is_estopped:
             return
-        # if self.vision_enable is False:
-        #     return
+        # ! 이게 없으면 크랭크코스에서 버벅이며 실패함
+        if self.vision_enable is False:
+            return
         if not msg.data:
             return
         try:
@@ -944,7 +945,7 @@ class DrivingNode(Node):
 
         gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
         mask = cv2.inRange(gray, 0, self.S_LINE_BLACK_THRESHOLD)   #그레이스케일 + 밝기값이 0~threshold 사이인 곳은 흰색만 남기겠다(이진화)
-        # # ! 자동노출로 인해 밝기가 달라지면 객체 인식이 안됨 -> 이미지 밝기 분포를 자동 분석해 threshold를 동적으로 결정
+        # #  자동노출로 인해 밝기가 달라지면 객체 인식이 안됨 -> 이미지 밝기 분포를 자동 분석해 threshold를 동적으로 결정(실패)
         # blur = cv2.GaussianBlur(gray, (5, 5), 0)
         # _, mask = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)  
 
@@ -989,14 +990,15 @@ class DrivingNode(Node):
                 continue
             cx = x + (M['m10'] / M['m00'])
 
-            CX_SWITCH_MARGIN = 20  # 픽셀, 필요하면 조정
+            # 오른쪽 커브일 때만 K=100으로 설정(변화 없어서 취소)
+            # CX_SWITCH_MARGIN = 20  # 픽셀, 필요하면 조정
 
-            if cx < w / 2.0 - CX_SWITCH_MARGIN:
-                K = 100
-            else:
-                K = 60
+            # if cx < w / 2.0 - CX_SWITCH_MARGIN:
+            #     K = 100
+            # else:
+            #     K = 60
 
-            this_offset = (cx - w / 2.0 - K) / (w / 2.0 - K)
+            this_offset = (cx - w / 2.0 - 70) / (w / 2.0 - 70)
 
             # # solidity 계산
             # hull = cv2.convexHull(c)
@@ -1028,7 +1030,8 @@ class DrivingNode(Node):
             candidates.sort(key=lambda t: t[0], reverse=True)
             best_contour = candidates[0][1]
             offset = candidates[0][2]
-            cx_full = (offset * (w / 2.0 - K)) + (w / 2.0 - K)
+            # cx_full = (offset * (w / 2.0 - K)) + (w / 2.0 - K)
+            cx_full = (offset * (w / 2.0 - 70)) + (w / 2.0 - 70)
             self.s_last_valid_offset = offset   # 성공했을 때만 "최근 유효 위치" 갱신
 
             # 디버그용: 채택된 컨투어의 밴드 영역 좌표도 구해둠
