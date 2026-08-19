@@ -1995,17 +1995,28 @@ class DrivingNode(Node):
         try:
             # 물리계층 carrier 파일 확인(커널이 hw드라이버로부터 직접 받는 값)
             with open(f'/sys/class/net/{WIFI_INTERFACE}/carrier') as f: # /sys/class/net/wlan0/carrier 안에 1인가?
-                if f.read().strip() != '1':
-                    return False                
-                    # 1이면 이어서
+                carrier = f.read().strip()
+        except OSError:
+            # ! 인터페이스가 관리자 권한으로 down 상태(`ip link set wlan0 down`)면
+            # carrier 파일 자체가 read 시 [Errno 22] Invalid argument를 던진다(0을 주는 게 아님).
+            # 이걸 아래의 광범위 except로 삼키면 "판단 불가 -> 연결됨으로 간주"가 되어
+            # wifi가 실제로 끊겨도 영원히 감지가 안 되므로 별도로 명확히 "끊김"으로 처리한다.
+            return False
+        except Exception as e:  # 파일이 아예 없다거나 등 그 외 예상 못한 상황
+            self.get_logger().warn(f'Wifi 상태 확인 실패: {e}')
+            return True # ? 연결됨으로 간주 왜냐하면 판단 자체가 실패했으니 끊긴 걸로 오인해서 로봇이 괜히 복귀하지 않게 하기 위함
+
+        if carrier != '1':
+            return False
+
+        try:
             # 네트워크 계층 ip addr 파싱(AP로부터 DHCP가 실제 IP주소를 할당 받았는가)
             result = subprocess.run(
                 ['ip', '-4', 'addr', 'show', WIFI_INTERFACE], # ip -4 addr show wlan0을 실행하고 result.stdout에 담음
                 capture_output=True, timeout=2, text=True
             )
             return 'inet ' in result.stdout # 'inet ' 들어있으면 IP주소 할당된 상태 -> True 반환
-        
-        except Exception as e:  # 파일이 아예 없다거나, ip 명령 자체가 없다거나 등
+        except Exception as e:  # ip 명령 자체가 없다거나 등
             self.get_logger().warn(f'Wifi 상태 확인 실패: {e}')
             return True # ? 연결됨으로 간주 왜냐하면 판단 자체가 실패했으니 끊긴 걸로 오인해서 로봇이 괜히 복귀하지 않게 하기 위함
 
