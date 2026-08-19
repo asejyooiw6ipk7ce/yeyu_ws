@@ -1035,6 +1035,12 @@ class DrivingNode(Node):
         return offset
 
     def on_odom(self, msg):
+        now = self.get_clock().now()
+        msg_time = rclpy.time.Time.from_msg(msg.header.stamp)
+        delay = (now - msg_time).nanoseconds / 1e9
+        if delay > 0.1:
+            self.get_logger().warn(f'odom 지연: {delay:.3f}s')
+
         q = msg.pose.pose.orientation
         self.current_yaw = math.atan2(
             2 * (q.w * q.z + q.x * q.y),
