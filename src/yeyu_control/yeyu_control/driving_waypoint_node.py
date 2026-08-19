@@ -11,6 +11,8 @@ from rclpy.node import Node
 from rclpy.action import ActionClient
 from rclpy.duration import Duration
 from rclpy.executors import MultiThreadedExecutor
+from rclpy.callback_groups import ReentrantCallbackGroup, MutuallyExclusiveCallbackGroup
+
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 
 from rcl_interfaces.srv import SetParameters
@@ -59,6 +61,7 @@ LED_COLOR_MAP = {
 }
 
 STAGE_TTS_LABELS = {   # 발음 가능한 한글 라벨을 별도로 관리
+    'NAV_WAYPOINT': '경로 주행',
     'TRACING_CRANK': '크랭크 코스',
     'TRACING_S': 'S자 코스',
     'SIGNAL_WAIT': '신호대기',
@@ -229,6 +232,9 @@ class DrivingNode(Node):
         self.s_last_valid_offset = None
         self.s_course_state = SCourseState.TRACKING
 
+        self.fast_cb_group = ReentrantCallbackGroup()
+        self.camera_cb_group = MutuallyExclusiveCallbackGroup() 
+
         # --- 구독/발행 ---
         sensor_qos = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
@@ -237,8 +243,8 @@ class DrivingNode(Node):
             depth=1,
         )
 
-        self.create_subscription(CompressedImage, self.image_topic, self.on_camera, sensor_qos)
-        self.create_subscription(CameraInfo, self.camera_info_topic, self.camera_info_callback, sensor_qos)
+        self.create_subscription(CompressedImage, self.image_topic, self.on_camera, sensor_qos, callback_group=self.camera_cb_group)
+        self.create_subscription(CameraInfo, self.camera_info_topic, self.camera_info_callback, sensor_qos, callback_group=self.fast_cb_group)
         self.create_subscription(PoseWithCovarianceStamped, '/amcl_pose', self.on_amcl_pose, 10)
         self.create_subscription(Odometry, '/odom', self.on_odom, 10)
         self.create_subscription(IRSensor, 'sensor_bridge/ir_state', self.on_ir_sensor, 10)
@@ -426,7 +432,7 @@ class DrivingNode(Node):
 
         self._reset_crank_state()
         if self.crank_timer is None:
-            self.crank_timer = self.create_timer(self.timer_period, self.crank_control_loop)
+            self.crank_timer = self.create_timer(self.timer_period, self.crank_control_loop, callback_group=self.fast_cb_group)
 
     # ================= 구간 결과 보고 (공통 헬퍼) =================
     def _publish_status(self, mode: str, result: str, reason: str = ''):   # [병합: A] 판정 없이 상태만 알리는 헬퍼
@@ -741,8 +747,8 @@ class DrivingNode(Node):
         if self.is_estopped:
             return
         # ! 이게 없으면 크랭크코스에서 버벅이며 실패함
-        if self.vision_enable is False:
-            return
+        # if self.vision_enable is False:
+        #     return
         if not msg.data:
             return
         try:
@@ -1960,7 +1966,7 @@ class DrivingNode(Node):
         if overall_pass:
             self.notify_tts('전체 코스를 완료했습니다. 모든 구간을 성공적으로 통과했습니다.')
         else:
-            fail_stages = [name for name, r in self.stage_results.items() if r == StageResult.FAIL]
+            fail_stages = [STAGE_TTS_LABELS.get(name,name) for name, r in self.stage_results.items() if r == StageResult.FAIL]
             self.notify_tts(f'전체 코스를 완료했습니다. {", ".join(fail_stages)} 구간에서 실패했습니다.')
 
     def check_wifi_status(self) -> bool:
