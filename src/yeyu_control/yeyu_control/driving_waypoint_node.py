@@ -1075,7 +1075,9 @@ class DrivingNode(Node):
         msg_time = rclpy.time.Time.from_msg(msg.header.stamp)
         delay = (now - msg_time).nanoseconds / 1e9
         if delay > 0.1:
-            self.get_logger().warn(f'odom 지연: {delay:.3f}s')
+            # ! throttle 없이 매 odom 메시지마다 찍으면 지연이 심할 때(=메시지가 잦을 때) 로그 폭주로
+            # CPU를 더 깎아먹어 지연을 악화시키는 악순환이 생길 수 있어 다른 경고들처럼 throttle 적용
+            self._throttled_warn(f'odom 지연: {delay:.3f}s')
 
         q = msg.pose.pose.orientation
         self.current_yaw = math.atan2(
