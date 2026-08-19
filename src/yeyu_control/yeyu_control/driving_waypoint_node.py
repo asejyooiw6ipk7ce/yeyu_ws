@@ -745,8 +745,8 @@ class DrivingNode(Node):
         if self.is_estopped:
             return
         # ! 이게 없으면 크랭크코스에서 버벅이며 실패함
-        if self.vision_enable is False:
-            return
+        # if self.vision_enable is False:
+        #     return
         if not msg.data:
             return
         try:
