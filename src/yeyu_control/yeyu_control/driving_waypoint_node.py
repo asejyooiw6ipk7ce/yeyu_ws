@@ -11,6 +11,7 @@ from rclpy.node import Node
 from rclpy.action import ActionClient
 from rclpy.duration import Duration
 from rclpy.executors import MultiThreadedExecutor
+from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 
 from rcl_interfaces.srv import SetParameters
@@ -233,11 +234,12 @@ class DrivingNode(Node):
             history=HistoryPolicy.KEEP_LAST,
             depth=1,
         )
+        self.fast_cb_group = ReentrantCallbackGroup()
 
         self.create_subscription(CompressedImage, self.image_topic, self.on_camera, sensor_qos)
         self.create_subscription(CameraInfo, self.camera_info_topic, self.camera_info_callback, sensor_qos)
         self.create_subscription(PoseWithCovarianceStamped, '/amcl_pose', self.on_amcl_pose, 10)
-        self.create_subscription(Odometry, '/odom', self.on_odom, 10)
+        self.create_subscription(Odometry, '/odom', self.on_odom, 10, callback_group=self.fast_cb_group)
         self.create_subscription(IRSensor, 'sensor_bridge/ir_state', self.on_ir_sensor, 10)
         self.create_subscription(   # [병합: A] 초음파 장애물 거리
             Float32, 'sensor_bridge/obstacle_distance_cm', self.on_obstacle_distance, 10)
@@ -721,8 +723,8 @@ class DrivingNode(Node):
         
         if self.is_estopped:
             return
-        if self.vision_enable is False:
-            return
+        # if self.vision_enable is False:
+        #     return
         if not msg.data:
             return
 
