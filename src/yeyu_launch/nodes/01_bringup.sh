@@ -1,5 +1,6 @@
 #!/bin/bash
 # yeyu_bringup: TurtleBot3 Bringup
+sleep 0
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/../lib/wait_ros.sh"

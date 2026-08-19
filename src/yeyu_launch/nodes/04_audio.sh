@@ -3,6 +3,7 @@
 # 4) USB 스피커 설정 후 오디오 출력 노드 시작
 #    set_usb_speaker.sh 경로가 다르면 아래 SPEAKER_SCRIPT 값을 수정하세요.
 # ================================================================
+sleep 9
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/../lib/wait_ros.sh"

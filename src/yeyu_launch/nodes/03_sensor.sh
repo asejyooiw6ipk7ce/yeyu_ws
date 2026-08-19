@@ -1,4 +1,5 @@
 #!/bin/bash
+sleep 6
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/../lib/wait_ros.sh"
