@@ -67,7 +67,7 @@ class DashboardRosNode(Node):
         self.create_subscription(
             Float32, 'sensor_bridge/obstacle_distance_cm', self.on_obstacle_distance, sensor_qos)  
         self.create_subscription(
-            CompressedImage, '/camera/image_flipped/compressed', self.on_image, sensor_qos)
+            CompressedImage, '/camera/image_raw/compressed', self.on_image, sensor_qos)
         self.create_subscription(   
             CompressedImage, '/s_course_debug_image/compressed', self.on_s_course_debug_image, sensor_qos)
         self.create_subscription(                                                        
@@ -127,6 +127,7 @@ class DashboardRosNode(Node):
         except (CvBridgeError, cv2.error) as e:
             self.get_logger().warn(f'camera image decode 실패: {e}')
             return
+        cv_image = cv2.flip(cv_image, -1)
         rgb = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
         rgb = np.ascontiguousarray(rgb)
         h, w, ch = rgb.shape
