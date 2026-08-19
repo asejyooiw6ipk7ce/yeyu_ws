@@ -633,6 +633,7 @@ class DrivingNode(Node):
                 self.get_logger().info('[Wifi 단절] 처음 위치로 복귀 완료')
                 self._publish_cmd(Twist())
                 self._publish_status('WIFI_RETURN_HOME', 'DONE', 'wifi 단절로 처음 위치로 복귀')
+                self.set_goal_tolerance(0.25, 0.25)   # 일반 주행용 기본값으로 원복
                 return
 
             if self.wp_index == 4:   # wp5(미로 시작점) 도착 → wp6(신호등 진입점)로
@@ -1556,6 +1557,25 @@ class DrivingNode(Node):
         except Exception as e:
             self.get_logger().warn(f'[set_speed] 응답 처리 실패: {e}')
 
+    # ================= [wifi 복귀 전용] 목표 도달 허용오차 =================
+    def set_goal_tolerance(self, xy: float, yaw: float):
+        # ! 일반 웨이포인트 주행용 기본값(0.25/0.25)은 건드리지 않고, wifi 복귀
+        # 목표에만 잠깐 타이트하게 걸었다가 도착 후 원래대로 되돌리는 용도.
+        if not self.param_client.wait_for_service(timeout_sec=1.0):
+            self.get_logger().warn('controller_server 파라미터 서비스 응답 없음')
+            return
+        xy_param = Parameter()
+        xy_param.name = 'general_goal_checker.xy_goal_tolerance'
+        xy_param.value = ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=xy)
+        yaw_param = Parameter()
+        yaw_param.name = 'general_goal_checker.yaw_goal_tolerance'
+        yaw_param.value = ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=yaw)
+        req = SetParameters.Request()
+        req.parameters = [xy_param, yaw_param]
+        future = self.param_client.call_async(req)
+        future.add_done_callback(
+            lambda f: self.get_logger().info(f'[goal_tolerance] xy={xy}, yaw={yaw} 적용 시도'))
+
     # ================= [병합: A] costmap inflation_radius 제어 =================
     def set_inflation_radius(self, radius: float, clients=None):
         if clients is None:
@@ -2110,6 +2130,7 @@ class DrivingNode(Node):
         # ! 진행중인 구간의 cmd_vel을 막아야함
         self.mode = DrivingMode.WIFI_RETURN_HOME
         self.wp_index = self.first_wp_index
+        self.set_goal_tolerance(0.05, 0.1)   # wp1에 정확히 도착하도록 일시적으로 타이트하게
 
         if self.crank_timer is not None:
             self.crank_timer.cancel()
