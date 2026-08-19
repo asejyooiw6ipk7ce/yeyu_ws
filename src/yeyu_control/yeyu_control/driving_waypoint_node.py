@@ -721,8 +721,8 @@ class DrivingNode(Node):
         
         if self.is_estopped:
             return
-        # if self.vision_enable is False:
-        #     return
+        if self.vision_enable is False:
+            return
         if not msg.data:
             return
 
