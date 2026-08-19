@@ -1978,6 +1978,24 @@ class DrivingNode(Node):
 
         state['timer'] = self.create_timer(interval_sec, _resend)
 
+    def _stop_with_retry(self, attempts: int = 8, interval_sec: float = 0.3):
+        # ! wifi 단절 순간 정지 명령(0,0)도 TTS와 같은 이유로 통째로 유실될 수 있다.
+        # 이건 안전 문제라서(유실되면 로봇이 직전 직진/회전 명령을 계속 실행) 짧은 간격으로
+        # 여러 번 반복 발행해서 네트워크가 흔들리는 짧은 창을 뚫고 최소 한 번은 도달하게 한다.
+        self.publish_cmd(0.0, 0.0)
+        remaining = attempts - 1
+        if remaining <= 0:
+            return
+        state = {'remaining': remaining}
+
+        def _resend():
+            self.publish_cmd(0.0, 0.0)
+            state['remaining'] -= 1
+            if state['remaining'] <= 0:
+                state['timer'].cancel()
+
+        state['timer'] = self.create_timer(interval_sec, _resend)
+
     # ================= 결과 요약 =================
     def publish_final_result(self):
         for stage, result in self.stage_results.items():
@@ -2111,7 +2129,7 @@ class DrivingNode(Node):
         self.is_handling_obstacle = False   
 
         self.pause_nav()  # 혹시 진행 중이던 이전 nav 목표가 있으면 취소
-        self.publish_cmd(0.0, 0.0)
+        self._stop_with_retry()
         self._notify_tts_with_retry('Wifi가 연결되지 않았습니다. 처음 위치로 돌아갑니다.')
 
         self.send_waypoint(self.waypoints[self.first_wp_index])
