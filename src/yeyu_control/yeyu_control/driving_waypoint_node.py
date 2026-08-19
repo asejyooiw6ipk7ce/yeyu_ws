@@ -284,6 +284,7 @@ class DrivingNode(Node):
         self.s_course_timer = None
         self.vision_timer = self.create_timer(self.timer_period, self.camera_processing_loop)
         self.nav_result_timer = self.create_timer(0.2, self._nav_result_loop)
+        
 
     # ================= 파라미터 =================
     def _declare_parking_parameters(self):
