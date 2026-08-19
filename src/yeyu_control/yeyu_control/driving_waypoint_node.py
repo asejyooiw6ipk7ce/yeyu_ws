@@ -623,6 +623,12 @@ class DrivingNode(Node):
         if status == GoalStatus.STATUS_SUCCEEDED:
             self.nav_fail_count = 0
 
+            if self.mode == DrivingMode.WIFI_RETURN_HOME:   # wifi 단절로 wp1 복귀 중이었던 경우
+                self.get_logger().info('[Wifi 단절] 처음 위치로 복귀 완료')
+                self._publish_cmd(Twist())
+                self._publish_status('WIFI_RETURN_HOME', 'DONE', 'wifi 단절로 처음 위치로 복귀')
+                return
+
             if self.wp_index == 4:   # wp5(미로 시작점) 도착 → wp6(신호등 진입점)로
                 self.wp_index = 5
                 self.mode = DrivingMode.NAV_TO_SIGNAL
@@ -842,7 +848,7 @@ class DrivingNode(Node):
     def on_obstacle_distance(self, msg: Float32):
         if self.is_estopped or self.is_handling_obstacle:
             return
-        if self.mode != DrivingMode.NAV_TO_END:
+        if self.mode not in (DrivingMode.NAV_TO_END, DrivingMode.WIFI_RETURN_HOME):
             return
         if msg.data <= self.OBSTACLE_STOP_DISTANCE_CM:
             self.get_logger().warn(f'[OBSTACLE] 장애물 감지: {msg.data:.1f} cm')
@@ -2039,8 +2045,8 @@ class DrivingNode(Node):
         self.get_logger().error('[Wifi 단절] 처음 위치로 돌아갑니다')
 
         # ! 진행중인 구간의 cmd_vel을 막아야함
-        self.mode = DrivingMode.NAV_TO_END
-        self.wp_index = -1
+        self.mode = DrivingMode.WIFI_RETURN_HOME
+        self.wp_index = self.first_wp_index
 
         if self.crank_timer is not None:
             self.crank_timer.cancel()

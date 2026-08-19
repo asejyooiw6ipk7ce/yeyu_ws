@@ -16,3 +16,4 @@ class DrivingMode(Enum):
     E_STOP = auto()
     RESULT_SUMMARY = auto()
     RETRY = auto()
+    WIFI_RETURN_HOME = auto()  # wifi 단절 감지 → 진행 중이던 구간 취소하고 wp1(첫 위치)로 복귀
