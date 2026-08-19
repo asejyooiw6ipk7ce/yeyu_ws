@@ -735,14 +735,6 @@ class DrivingNode(Node):
 
         flipped = cv2.flip(cv_image, -1)
 
-
-        #     try:
-        #         out_msg = self.bridge.cv2_to_compressed_imgmsg(flipped, dst_format='jpg')
-        #         out_msg.header = msg.header
-        #         self.image_pub.publish(out_msg)
-        #     except Exception as e:
-        #         self.get_logger().warn(f'republish 실패: {e}')
-
         with self.camera_lock:
             self.latest_frame = flipped
             self.latest_frame_header = msg.header
