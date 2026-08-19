@@ -11,7 +11,6 @@ from rclpy.node import Node
 from rclpy.action import ActionClient
 from rclpy.duration import Duration
 from rclpy.executors import MultiThreadedExecutor
-from rclpy.callback_groups import ReentrantCallbackGroup
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 
 from rcl_interfaces.srv import SetParameters
@@ -234,12 +233,11 @@ class DrivingNode(Node):
             history=HistoryPolicy.KEEP_LAST,
             depth=1,
         )
-        self.fast_cb_group = ReentrantCallbackGroup()
 
         self.create_subscription(CompressedImage, self.image_topic, self.on_camera, sensor_qos)
         self.create_subscription(CameraInfo, self.camera_info_topic, self.camera_info_callback, sensor_qos)
         self.create_subscription(PoseWithCovarianceStamped, '/amcl_pose', self.on_amcl_pose, 10)
-        self.create_subscription(Odometry, '/odom', self.on_odom, 10, callback_group=self.fast_cb_group)
+        self.create_subscription(Odometry, '/odom', self.on_odom, 10)
         self.create_subscription(IRSensor, 'sensor_bridge/ir_state', self.on_ir_sensor, 10)
         self.create_subscription(   # [병합: A] 초음파 장애물 거리
             Float32, 'sensor_bridge/obstacle_distance_cm', self.on_obstacle_distance, 10)
@@ -727,10 +725,6 @@ class DrivingNode(Node):
         #     return
         if not msg.data:
             return
-
-        self._camera_frame_count = getattr(self, '_camera_frame_count', 0) + 1
-        should_republish = (self._camera_frame_count % 2 == 0)   # 매 2프레임마다 한 번만 (fps 절반으로)
-
         try:
             cv_image = self.bridge.compressed_imgmsg_to_cv2(msg, desired_encoding='bgr8')
         except (CvBridgeError, cv2.error) as e:
@@ -739,17 +733,17 @@ class DrivingNode(Node):
 
         flipped = cv2.flip(cv_image, -1)
 
-        if should_republish:
-            try:
-                out_msg = self.bridge.cv2_to_compressed_imgmsg(flipped, dst_format='jpg')
-                out_msg.header = msg.header
-                self.image_pub.publish(out_msg)
-            except Exception as e:
-                self.get_logger().warn(f'republish 실패: {e}')
 
-            with self.camera_lock:
-                self.latest_frame = flipped
-                self.latest_frame_header = msg.header
+        #     try:
+        #         out_msg = self.bridge.cv2_to_compressed_imgmsg(flipped, dst_format='jpg')
+        #         out_msg.header = msg.header
+        #         self.image_pub.publish(out_msg)
+        #     except Exception as e:
+        #         self.get_logger().warn(f'republish 실패: {e}')
+
+        with self.camera_lock:
+            self.latest_frame = flipped
+            self.latest_frame_header = msg.header
 
     def camera_processing_loop(self):
         if self.vision_enable is False:
