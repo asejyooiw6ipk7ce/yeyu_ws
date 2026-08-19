@@ -721,6 +721,8 @@ class DrivingNode(Node):
         
         if self.is_estopped:
             return
+        if self.vision_enable is False:
+            return
         if not msg.data:
             return
         try:
@@ -1906,7 +1908,7 @@ class DrivingNode(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = DrivingNode()
-    executor = MultiThreadedExecutor(num_threads=2)
+    executor = MultiThreadedExecutor(num_threads=4)
     executor.add_node(node)
     try:
         executor.spin()
