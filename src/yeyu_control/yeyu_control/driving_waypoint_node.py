@@ -1953,6 +1953,25 @@ class DrivingNode(Node):
         self.audio_pub.publish(msg)
         self.get_logger().info(f'[TTS] {text}')
 
+    def _notify_tts_with_retry(self, text: str, attempts: int = 3, interval_sec: float = 1.5):
+        # ! wifi 단절처럼 네트워크 자체가 흔들리는 순간에 발행하면, CycloneDDS가
+        # 로컬 프로세스 간 통신도 loopback이 아니라 wlan0 IP로 하기 때문에
+        # 이 메시지 한 번이 통째로 유실될 수 있다(odom/tf처럼 계속 재발행되는
+        # 토픽과 달리 1회성이라 스스로 복구가 안 됨). 그래서 일정 간격으로 재발행한다.
+        self.notify_tts(text)
+        remaining = attempts - 1
+        if remaining <= 0:
+            return
+        state = {'remaining': remaining}
+
+        def _resend():
+            self.notify_tts(text)
+            state['remaining'] -= 1
+            if state['remaining'] <= 0:
+                state['timer'].cancel()
+
+        state['timer'] = self.create_timer(interval_sec, _resend)
+
     # ================= 결과 요약 =================
     def publish_final_result(self):
         for stage, result in self.stage_results.items():
@@ -2080,7 +2099,7 @@ class DrivingNode(Node):
 
         self.pause_nav()  # 혹시 진행 중이던 이전 nav 목표가 있으면 취소
         self.publish_cmd(0.0, 0.0)
-        self.notify_tts('Wifi가 연결되지 않았습니다. 처음 위치로 돌아갑니다.')
+        self._notify_tts_with_retry('Wifi가 연결되지 않았습니다. 처음 위치로 돌아갑니다.')
 
         self.send_waypoint(self.waypoints[self.first_wp_index])
 
