@@ -206,6 +206,7 @@ class DrivingNode(Node):
         self.crank_turn_start_yaw = 0.0
         self.crank_turn_target_delta = 0.0
         self.current_yaw = 0.0
+        self.odom_received = False
         with self.data_lock:
             self.current_x = None
             self.current_y = None
@@ -1038,6 +1039,7 @@ class DrivingNode(Node):
         self.current_yaw = math.atan2(
             2 * (q.w * q.z + q.x * q.y),
             1 - 2 * (q.y * q.y + q.z * q.z))
+        self.odom_received = True
         self.current_linear_x = msg.twist.twist.linear.x   # [수정] accel_zone_check_loop가 쓸 최신 속도 저장
         self.odom_x = msg.pose.pose.position.x
         self.odom_y = msg.pose.pose.position.y
@@ -1671,6 +1673,9 @@ class DrivingNode(Node):
         #     self._start_crank_turn(self.crank_turn_pending_delta)
 
     def _start_crank_turn(self, target_delta_deg: float):
+        if not self.odom_received:
+            self.get_logger().warn('odom 아직 없음 - 회전 시작 보류')
+            return   # 회전 시작 자체를 막음
         self.crank_turn_start_yaw = self.current_yaw
         self.crank_turn_target_delta = math.radians(target_delta_deg)
         self.crank_state = LineCourseState.TURNING
