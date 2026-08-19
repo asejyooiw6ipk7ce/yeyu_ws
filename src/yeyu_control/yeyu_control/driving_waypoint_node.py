@@ -280,8 +280,10 @@ class DrivingNode(Node):
 
         # ========== wifi 감지 상태 ===========
         self.wifi_connected = True              # 현재 연결 상태
-        self.home_wp_index = 0      # 처음 위치
+        self.first_wp_index = 0      # 처음 위치
         self.wifi_disconnection_handled = False # 한 번만 처리하기 위한 플래그
+        self.wifi_fail_count = 0
+        self.WIFI_FAIL_THRESHOLD = 2  # 연속 2번(10초) 실패해야 진짜 끊김으로 판정
 
         # ========== 타이머 ===========
         self.timer_period = 1.0 / max(self.control_rate_hz, 0.5)
@@ -1962,31 +1964,66 @@ class DrivingNode(Node):
             self.notify_tts(f'전체 코스를 완료했습니다. {", ".join(fail_stages)} 구간에서 실패했습니다.')
 
     def check_wifi_status(self) -> bool:
+
+        # try:
+        #     result = subprocess.run(
+        #         ['nmcli', 'networking', 'connectivity'],
+        #         capture_output=True,
+        #         timeout=2,
+        #         text=True
+        #     )
+        #     status = result.stdout.strip()
+        #     return status == 'full'
+        # except Exception as e:
+        #     self.get_logger().warn(f'Wifi 상태 확인 실패: {e}')
+        #     return True
+        
+        # ! nmli 대신 물리계층이랑 네트워크 계층 살펴보기로 변경
+        WIFI_INTERFACE = 'wlan0'
         try:
+            # 물리계층 carrier 파일 확인(커널이 hw드라이버로부터 직접 받는 값)
+            with open(f'/sys/class/net/{WIFI_INTERFACE}/carrier') as f: # /sys/class/net/wlan0/carrier 안에 1인가?
+                if f.read().strip() != '1':
+                    return False                
+                    # 1이면 이어서
+            # 네트워크 계층 ip addr 파싱(AP로부터 DHCP가 실제 IP주소를 할당 받았는가)
             result = subprocess.run(
-                ['nmcli', 'networking', 'connectivity'],
-                capture_output=True,
-                timeout=2,
-                text=True
+                ['ip', '-4', 'addr', 'show', WIFI_INTERFACE], # ip -4 addr show wlan0을 실행하고 result.stdout에 담음
+                capture_output=True, timeout=2, text=True
             )
-            status = result.stdout.strip()
-            return status == 'full'
-        except Exception as e:
+            return 'inet ' in result.stdout # 'inet ' 들어있으면 IP주소 할당된 상태 -> True 반환
+        
+        except Exception as e:  # 파일이 아예 없다거나, ip 명령 자체가 없다거나 등
             self.get_logger().warn(f'Wifi 상태 확인 실패: {e}')
-            return True
+            return True # ? 연결됨으로 간주 왜냐하면 판단 자체가 실패했으니 끊긴 걸로 오인해서 로봇이 괜히 복귀하지 않게 하기 위함
 
     def wifi_polling_loop(self):
         current_status = self.check_wifi_status()
 
+        # with self.wifi_check_lock:
+        #     if not current_status and self.wifi_connected:
+        #         self.wifi_connected = False
+        #         self.get_logger().error('Wifi 연결 끊김!')
+        #         self.on_wifi_disconnected()
+        #     elif current_status and not self.wifi_connected:
+        #         self.wifi_connected = True
+        #         self.get_logger().info('Wifi 다시 연결됨')
+        #         self.wifi_disconnection_handled = False
+
+        # ! 5초마다 폴링하는데 그 순간 신호가 애매해서 full↔limited를 반복하는 상황 방지 - 연속 2번(10초) 실패해야 진짜 끊김
         with self.wifi_check_lock:
-            if not current_status and self.wifi_connected:
-                self.wifi_connected = False
-                self.get_logger().error('Wifi 연결 끊김!')
-                self.on_wifi_disconnected()
-            elif current_status and not self.wifi_connected:
-                self.wifi_connected = True
-                self.get_logger().info('Wifi 다시 연결됨')
-                self.wifi_disconnection_handled = False
+            if current_status:
+                self.wifi_fail_count = 0
+                if not self.wifi_connected:
+                    self.wifi_connected = True
+                    self.get_logger().info('Wifi 다시 연결됨')
+                    self.wifi_disconnection_handled = False
+            else:
+                self.wifi_fail_count += 1
+                if self.wifi_fail_count >= self.WIFI_FAIL_THRESHOLD and self.wifi_connected:
+                    self.wifi_connected = False
+                    self.get_logger().error('Wifi 연결 끊김!')
+                    self.on_wifi_disconnected()
 
     def on_wifi_disconnected(self):
         if self.wifi_disconnection_handled:
@@ -1995,11 +2032,32 @@ class DrivingNode(Node):
         self.wifi_disconnection_handled = True
         self.get_logger().error('[Wifi 단절] 처음 위치로 돌아갑니다')
 
+        # ! 진행중인 구간의 cmd_vel을 막아야함
+        self.mode = DrivingMode.NAV_TO_END
+        self.wp_index = -1
+
+        if self.crank_timer is not None:
+            self.crank_timer.cancel()
+            self.crank_timer = None
+        if self.s_course_timer is not None:
+            self.s_course_timer.cancel()
+            self.s_course_timer = None
+        if self.parking_timer is not None:
+            self.parking_timer.cancel()
+            self.parking_timer = None
+        if self.accel_timer is not None:
+            self.accel_timer.cancel()
+            self.accel_timer = None
+        if self.obstacle_blink_timer is not None:         
+            self.obstacle_blink_timer.cancel()
+            self.obstacle_blink_timer = None
+        self.is_handling_obstacle = False   
+
+        self.pause_nav()  # 혹시 진행 중이던 이전 nav 목표가 있으면 취소
         self.publish_cmd(0.0, 0.0)
         self.notify_tts('Wifi가 연결되지 않았습니다. 처음 위치로 돌아갑니다.')
 
-        home_wp = self.waypoints[self.home_wp_index]
-        self.send_waypoint(home_wp)
+        self.send_waypoint(self.waypoints[self.first_wp_index])
 
     def destroy_node(self):
         for _ in range(5):
