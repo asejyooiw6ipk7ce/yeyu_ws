@@ -367,7 +367,7 @@ class DrivingNode(Node):
         self.S_ANGULAR_GAIN = 0.9
         self.S_ANGULAR_MAX = 0.6
         self.S_OFFSET_DEADBAND = 0.05
-        self.S_LINE_LOST_TIMEOUT_SEC = 30.0 #1.2 -> 30.0
+        self.S_LINE_LOST_TIMEOUT_SEC = 15.0  #1.2 -> 30.0 -> 15.0
         self.S_ARRIVAL_TOLERANCE_M = 0.3   # 0.10 -> 0.15 -> 0.2 -> 0.3
         self.S_OFFSET_JUMP_LIMIT = 0.6   # 0.4 -> 0.8 -> 0.6
         self.S_BOTTOM_BAND_HEIGHT_RATIO = 0.3   # 채택된 컨투어의 bounding box 중 하단 몇 %만으로 cx 계산할지
@@ -725,6 +725,10 @@ class DrivingNode(Node):
             return
         if not msg.data:
             return
+
+        self._camera_frame_count = getattr(self, '_camera_frame_count', 0) + 1
+        should_republish = (self._camera_frame_count % 2 == 0)   # 매 2프레임마다 한 번만 (fps 절반으로)
+
         try:
             cv_image = self.bridge.compressed_imgmsg_to_cv2(msg, desired_encoding='bgr8')
         except (CvBridgeError, cv2.error) as e:
@@ -733,16 +737,17 @@ class DrivingNode(Node):
 
         flipped = cv2.flip(cv_image, -1)
 
-        try:
-            out_msg = self.bridge.cv2_to_compressed_imgmsg(flipped, dst_format='jpg')
-            out_msg.header = msg.header
-            self.image_pub.publish(out_msg)
-        except Exception as e:
-            self.get_logger().warn(f'republish 실패: {e}')
+        if should_republish:
+            try:
+                out_msg = self.bridge.cv2_to_compressed_imgmsg(flipped, dst_format='jpg')
+                out_msg.header = msg.header
+                self.image_pub.publish(out_msg)
+            except Exception as e:
+                self.get_logger().warn(f'republish 실패: {e}')
 
-        with self.camera_lock:
-            self.latest_frame = flipped
-            self.latest_frame_header = msg.header
+            with self.camera_lock:
+                self.latest_frame = flipped
+                self.latest_frame_header = msg.header
 
     def camera_processing_loop(self):
         if self.vision_enable is False:
@@ -987,7 +992,7 @@ class DrivingNode(Node):
                 continue
             cx = x + (M['m10'] / M['m00'])
 
-            this_offset = (cx - w / 2.0 -100) / (w / 2.0- 100)
+            this_offset = (cx - w / 2.0 -80) / (w / 2.0- 80)
 
             # # solidity 계산
             # hull = cv2.convexHull(c)
@@ -1019,7 +1024,7 @@ class DrivingNode(Node):
             candidates.sort(key=lambda t: t[0], reverse=True)
             best_contour = candidates[0][1]
             offset = candidates[0][2]
-            cx_full = (offset * (w / 2.0 -100)) + (w / 2.0 -100)
+            cx_full = (offset * (w / 2.0 -80)) + (w / 2.0 -80)
             self.s_last_valid_offset = offset   # 성공했을 때만 "최근 유효 위치" 갱신
 
             # 디버그용: 채택된 컨투어의 밴드 영역 좌표도 구해둠
@@ -1583,7 +1588,8 @@ class DrivingNode(Node):
             self.crank_line_lost_since = None
             self.last_meaningful_ir = (0, 1, 0)
             self.crank_turn_pending_delta = 0.0
-            self.crank_creep_start_time = None
+            self.crank_creep_start_time = None 
+            self.crank_course_min_dist = None 
 
     def _handle_crank_following(self):
         ir = (self.ir_l, self.ir_c, self.ir_r)
@@ -1711,15 +1717,36 @@ class DrivingNode(Node):
         self.publish_cmd(0.0, direction * self.CRANK_TURN_ANGULAR_SPEED)
 
     def _check_crank_arrival(self):
-        with self.data_lock:
-            x, y = self.current_x, self.current_y
+        try:
+            t = self.tf_buffer.lookup_transform('map', 'base_link', rclpy.time.Time())
+            x = t.transform.translation.x
+            y = t.transform.translation.y
+        except Exception as e:
+            self._throttled_warn(f'[TRACING_CRANK] tf lookup 실패, amcl_pose로 폴백: {e}')
+            with self.data_lock:
+                x, y = self.current_x, self.current_y
+            if x is None:
+                self.get_logger().warn('[TRACING_CRANK] 현재 위치를 알 수 없습니다.')
+                return
+        # with self.data_lock:
+        #     x, y = self.current_x, self.current_y
 
-        if x is None:
-            self.get_logger().warn('[TRACING_CRANK] 현재 위치를 알 수 없습니다.')
-            return
+        # if x is None:
+        #     self.get_logger().warn('[TRACING_CRANK] 현재 위치를 알 수 없습니다.')
+        #     return
+        
         target = self.waypoints[1]
         dist = math.hypot(x - float(target['x']), y - float(target['y']))
-        # self.get_logger().info(f'[CRANK] 현재=({x:.3f}, {y:.3f}), 목표=({target["x"]}, {target["y"]}), dist={dist:.3f}m')  # ← 추가
+
+
+        NEAR_MARGIN = self.CRANK_ARRIVAL_TOLERANCE_M * 1.5
+        if dist <= NEAR_MARGIN:
+            if self.crank_course_min_dist is None or dist < self.crank_course_min_dist:
+                self.crank_course_min_dist = dist
+            elif dist > self.crank_course_min_dist + 0.05:
+                self.get_logger().info(f'[TRACING_CRANK] 최근접점({self.crank_course_min_dist:.3f}m) 통과 판정')
+                self._on_crank_done()
+                return
         if dist <= self.CRANK_ARRIVAL_TOLERANCE_M:
             self._on_crank_done()
 
@@ -1803,16 +1830,36 @@ class DrivingNode(Node):
             self.s_line_offset = None
             self.s_line_last_seen_time = self.get_clock().now()
             self.s_last_valid_offset = None   # 추가: 코스 새로 시작할 때 초기화
+            self.s_course_min_dist = None  # 최소 거리 추적용
 
     def _check_s_course_arrival(self):
-        with self.data_lock:
-            x, y = self.current_x, self.current_y
-        if x is None:
-            self.get_logger().warn('[TRACING_CRANK] 현재 위치를 알 수 없습니다.')
-            return
+        try:
+            t = self.tf_buffer.lookup_transform('map', 'base_link', rclpy.time.Time())
+            x = t.transform.translation.x
+            y = t.transform.translation.y
+        except Exception as e:
+            self._throttled_warn(f'[TRACING_S] tf lookup 실패, amcl_pose로 폴백: {e}')
+            with self.data_lock:
+                x, y = self.current_x, self.current_y
+            if x is None:
+                self.get_logger().warn('[TRACING_S] 현재 위치를 알 수 없습니다.')
+                return
+        # with self.data_lock:
+        #     x, y = self.current_x, self.current_y
+        # if x is None:
+        #     self.get_logger().warn('[TRACING_CRANK] 현재 위치를 알 수 없습니다.')
+        #     return
         target = self.waypoints[3]
         dist = math.hypot(x - float(target['x']), y - float(target['y'])) 
-        self.get_logger().info(f'[S_COURSE] 현재=({x:.3f}, {y:.3f}), 목표=({target["x"]}, {target["y"]}), dist={dist:.3f}m')
+
+        NEAR_MARGIN = self.S_ARRIVAL_TOLERANCE_M * 1.5
+        if dist <= NEAR_MARGIN:
+            if self.s_course_min_dist is None or dist < self.s_course_min_dist:
+                self.s_course_min_dist = dist
+            elif dist > self.s_course_min_dist + 0.05:   # 최근접점 지나 다시 멀어지기 시작
+                self.get_logger().info(f'[S_COURSE] 최근접점({self.s_course_min_dist:.3f}m) 통과 판정')
+                self._on_s_course_done()
+                return
         if dist <= self.S_ARRIVAL_TOLERANCE_M:
             self._on_s_course_done()
 
