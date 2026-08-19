@@ -985,7 +985,7 @@ class DrivingNode(Node):
                 continue
             cx = x + (M['m10'] / M['m00'])
 
-            this_offset = (cx - w / 2.0 + 100) / (w / 2.0+ 100)
+            this_offset = (cx - w / 2.0 -100) / (w / 2.0- 100)
 
             # # solidity 계산
             # hull = cv2.convexHull(c)
@@ -1017,7 +1017,7 @@ class DrivingNode(Node):
             candidates.sort(key=lambda t: t[0], reverse=True)
             best_contour = candidates[0][1]
             offset = candidates[0][2]
-            cx_full = (offset * (w / 2.0+ 100)) + (w / 2.0+ 100)
+            cx_full = (offset * (w / 2.0 -100)) + (w / 2.0 -100)
             self.s_last_valid_offset = offset   # 성공했을 때만 "최근 유효 위치" 갱신
 
             # 디버그용: 채택된 컨투어의 밴드 영역 좌표도 구해둠
