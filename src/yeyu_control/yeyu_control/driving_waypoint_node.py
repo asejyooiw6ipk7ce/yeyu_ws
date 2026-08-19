@@ -290,6 +290,11 @@ class DrivingNode(Node):
         self.wifi_disconnection_handled = False # 한 번만 처리하기 위한 플래그
         self.wifi_fail_count = 0
         self.WIFI_FAIL_THRESHOLD = 2  # 연속 2번(10초) 실패해야 진짜 끊김으로 판정
+        # ! wifi가 오래 끊기면 CycloneDDS가 로컬 프로세스 통신까지 wlan0 IP로 하는 탓에
+        # nav goal 전송/응답 자체가 유실될 수 있고, 그러면 wifi가 다시 붙어도 아무도
+        # 재전송을 안 해서 로봇이 영구히 멈춰있게 된다. 도착 확인 플래그로 이를 감지해서
+        # 재연결 시점에 wp1 목표를 재전송한다.
+        self.wifi_return_arrived = True   # 복귀 중이 아니거나 이미 도착했으면 True
 
         # ========== 타이머 ===========
         self.timer_period = 1.0 / max(self.control_rate_hz, 0.5)
@@ -624,6 +629,7 @@ class DrivingNode(Node):
             self.nav_fail_count = 0
 
             if self.mode == DrivingMode.WIFI_RETURN_HOME:   # wifi 단절로 wp1 복귀 중이었던 경우
+                self.wifi_return_arrived = True
                 self.get_logger().info('[Wifi 단절] 처음 위치로 복귀 완료')
                 self._publish_cmd(Twist())
                 self._publish_status('WIFI_RETURN_HOME', 'DONE', 'wifi 단절로 처음 위치로 복귀')
@@ -2062,6 +2068,12 @@ class DrivingNode(Node):
                     self.wifi_connected = True
                     self.get_logger().info('Wifi 다시 연결됨')
                     self.wifi_disconnection_handled = False
+                    # ! 단절이 오래 지속되면 CycloneDDS가 로컬 통신까지 wlan0 IP로
+                    # 하는 탓에 wp1 복귀 nav goal 자체가 유실될 수 있다. 재연결 시점에
+                    # 아직 도착 확인이 안 됐으면 목표를 다시 보내서 영구 정지를 막는다.
+                    if self.mode == DrivingMode.WIFI_RETURN_HOME and not self.wifi_return_arrived:
+                        self.get_logger().warn('[Wifi 재연결] 복귀 목표 미완료 - wp1 재전송')
+                        self.send_waypoint(self.waypoints[self.first_wp_index])
             else:
                 self.wifi_fail_count += 1
                 if self.wifi_fail_count >= self.WIFI_FAIL_THRESHOLD and self.wifi_connected:
@@ -2074,6 +2086,7 @@ class DrivingNode(Node):
             return
 
         self.wifi_disconnection_handled = True
+        self.wifi_return_arrived = False
         self.get_logger().error('[Wifi 단절] 처음 위치로 돌아갑니다')
 
         # ! 진행중인 구간의 cmd_vel을 막아야함
