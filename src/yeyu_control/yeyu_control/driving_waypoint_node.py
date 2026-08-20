@@ -2080,10 +2080,45 @@ class DrivingNode(Node):
                 ['ip', '-4', 'addr', 'show', WIFI_INTERFACE], # ip -4 addr show wlan0을 실행하고 result.stdout에 담음
                 capture_output=True, timeout=2, text=True
             )
-            return 'inet ' in result.stdout # 'inet ' 들어있으면 IP주소 할당된 상태 -> True 반환
+            if 'inet ' not in result.stdout: # 'inet ' 없으면 IP 자체가 없는 것 -> 끊김
+                return False
         except Exception as e:  # ip 명령 자체가 없다거나 등
             self.get_logger().warn(f'Wifi 상태 확인 실패: {e}')
             return True # ? 연결됨으로 간주 왜냐하면 판단 자체가 실패했으니 끊긴 걸로 오인해서 로봇이 괜히 복귀하지 않게 하기 위함
+
+        # ! carrier와 IP가 둘 다 멀쩡해도, 공유기가 이 기기의 MAC만 차단하는
+        # "소프트 단절"에서는 트래픽이 실제로는 하나도 안 나간다. 이런 경우까지
+        # 잡으려면 게이트웨이로 실제 ping이 가는지까지 확인해야 한다.
+        return self._check_gateway_reachable()
+
+    def _get_default_gateway(self) -> Optional[str]:
+        try:
+            result = subprocess.run(
+                ['ip', 'route', 'show', 'default'],
+                capture_output=True, timeout=2, text=True
+            )
+            # 'default via 192.168.0.1 dev wlan0 ...' 형태에서 IP만 추출
+            parts = result.stdout.split()
+            if 'via' in parts:
+                return parts[parts.index('via') + 1]
+        except Exception as e:
+            self.get_logger().warn(f'기본 게이트웨이 확인 실패: {e}')
+        return None
+
+    def _check_gateway_reachable(self) -> bool:
+        gateway_ip = self._get_default_gateway()
+        if gateway_ip is None:
+            # ! 게이트웨이 자체를 못 찾으면 판단 불가 - 기존과 동일하게 보수적으로 "연결됨" 간주
+            return True
+        try:
+            result = subprocess.run(
+                ['ping', '-c', '1', '-W', '1', gateway_ip],
+                capture_output=True, timeout=2
+            )
+            return result.returncode == 0
+        except Exception as e:
+            self.get_logger().warn(f'게이트웨이 도달성 확인 실패: {e}')
+            return True # ? 판단 자체가 실패했으니 기존과 동일하게 보수적으로 "연결됨" 간주
 
     def wifi_polling_loop(self):
         current_status = self.check_wifi_status()
