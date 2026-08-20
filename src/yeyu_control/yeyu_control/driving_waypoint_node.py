@@ -174,6 +174,7 @@ class DrivingNode(Node):
 
         self.nav_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
         self.current_goal_handle = None
+        self.nav_goal_generation = 0  # ! 취소된 옛 goal의 결과가 새 goal 결과로 오인되지 않도록 goal마다 부여하는 세대 번호
         self.nav_fail_count = 0
 
         self.retry_srv = self.create_service(
@@ -575,17 +576,27 @@ class DrivingNode(Node):
         goal.pose.pose.orientation.z = qz
         goal.pose.pose.orientation.w = qw
 
+        self.nav_goal_generation += 1
+        my_generation = self.nav_goal_generation
         future = self.nav_client.send_goal_async(goal)
-        future.add_done_callback(self.on_goal_response)
+        future.add_done_callback(lambda f: self.on_goal_response(f, my_generation))
 
-    def on_goal_response(self, future):
+    def on_goal_response(self, future, generation):
         goal_handle = future.result()
+        if generation != self.nav_goal_generation:
+            # ! pause_nav() 직후 곧바로 send_waypoint()를 호출하는 경로(예: wifi 복귀)에서
+            # 취소한 이전 goal의 결과가 새 goal 결과로 오인되는 경쟁 상태를 막기 위해
+            # goal마다 세대 번호를 매기고, 이미 대체된 세대의 콜백은 여기서 걸러낸다.
+            self.get_logger().info(f'[on_goal_response] 이미 대체된 목표(gen={generation}) 무시')
+            if goal_handle.accepted:
+                goal_handle.cancel_goal_async()
+            return
         if not goal_handle.accepted:
             self.get_logger().warn('경로 목표가 거부됨')
             return
         self.current_goal_handle = goal_handle
         result_future = goal_handle.get_result_async()
-        result_future.add_done_callback(self.on_nav_result)
+        result_future.add_done_callback(lambda f: self.on_nav_result(f, generation))
 
     def pause_nav(self):
         if self.current_goal_handle is not None:
@@ -594,7 +605,10 @@ class DrivingNode(Node):
     def resume_nav(self, wp):
         self.send_waypoint(wp)
 
-    def on_nav_result(self, future):
+    def on_nav_result(self, future, generation):
+        if generation != self.nav_goal_generation:
+            self.get_logger().info(f'[on_nav_result] 이미 대체된 목표(gen={generation})의 결과 무시')
+            return
         if self.is_estopped:
             return
         result = future.result()
@@ -634,6 +648,7 @@ class DrivingNode(Node):
                 self._publish_cmd(Twist())
                 self._publish_status('WIFI_RETURN_HOME', 'DONE', 'wifi 단절로 처음 위치로 복귀')
                 self.set_goal_tolerance(0.25, 0.25)   # 일반 주행용 기본값으로 원복
+                self.set_progress_checker_radius(0.5)   # 일반 주행용 기본값으로 원복
                 return
 
             if self.wp_index == 4:   # wp5(미로 시작점) 도착 → wp6(신호등 진입점)로
@@ -754,10 +769,26 @@ class DrivingNode(Node):
         self.ir_c = int(msg.ir_sensor_c)
         self.ir_r = int(msg.ir_sensor_r)
 
+    # camera_processing_loop가 실제로 latest_frame을 읽는 모드만 여기 포함(코드 전체에서
+    # latest_frame을 쓰는 곳은 그 함수 하나뿐이라 이 목록과 항상 정확히 일치해야 한다).
+    _VISION_ACTIVE_MODES = frozenset({
+        DrivingMode.SIGNAL_WAIT,
+        DrivingMode.ACCEL_ZONE,
+        DrivingMode.PARKING,
+        DrivingMode.TRACING_S,
+    })
+
     # ================= 카메라: 신호/표지판/ArUco 통합 콜백 (가벼움: 저장만) =================
     def on_camera(self, msg: CompressedImage):
-        
+
         if self.is_estopped:
+            return
+        if self.mode not in self._VISION_ACTIVE_MODES:
+            # ! 매 프레임(수십 Hz)마다 JPEG 디코드+flip을 하는 게 Pi CPU를 상당히 잡아먹는데,
+            # 정작 그 프레임을 쓰는 건 camera_processing_loop가 이 4개 모드에서만이다.
+            # WIFI_RETURN_HOME을 포함한 NAV_TO_*/TRACING_CRANK 등 나머지 구간에서는
+            # latest_frame을 아무도 안 읽으므로(grep으로 확인) 디코드 자체를 건너뛴다.
+            # controller_server의 "Control loop missed its desired rate"의 원인 중 하나였음.
             return
         # ! 이게 없으면 크랭크코스에서 버벅이며 실패함
         # if self.vision_enable is False:
@@ -1561,6 +1592,15 @@ class DrivingNode(Node):
     def set_goal_tolerance(self, xy: float, yaw: float):
         # ! 일반 웨이포인트 주행용 기본값(0.25/0.25)은 건드리지 않고, wifi 복귀
         # 목표에만 잠깐 타이트하게 걸었다가 도착 후 원래대로 되돌리는 용도.
+        #
+        # ! xy_goal_tolerance는 controller_server 안에 두 개가 따로 있다:
+        # general_goal_checker.xy_goal_tolerance(최종 "도착" 판정, 여기서 0.05로 낮춤)와
+        # FollowPath(DWB).xy_goal_tolerance(로컬플래너가 "거의 다 왔다"고 보고 제자리
+        # 회전 위주로 전환하는 내부 기준, 기본 0.25). 이걸 같이 안 낮추면 목표까지 남은
+        # 거리가 0.25~0.05m 구간일 때 DWB가 먼저 회전모드로 들어가 위치가 거의 안
+        # 바뀌는데, 도착 판정은 아직 0.05m 기준이라 안 끝나서 progress_checker가
+        # "10초간 이동 없음"으로 보고 Failed to make progress를 던진다. 그래서 두
+        # 파라미터를 항상 같이 맞춘다.
         if not self.param_client.wait_for_service(timeout_sec=1.0):
             self.get_logger().warn('controller_server 파라미터 서비스 응답 없음')
             return
@@ -1570,11 +1610,64 @@ class DrivingNode(Node):
         yaw_param = Parameter()
         yaw_param.name = 'general_goal_checker.yaw_goal_tolerance'
         yaw_param.value = ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=yaw)
+        follow_path_xy_param = Parameter()
+        follow_path_xy_param.name = 'FollowPath.xy_goal_tolerance'
+        follow_path_xy_param.value = ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=xy)
         req = SetParameters.Request()
-        req.parameters = [xy_param, yaw_param]
+        req.parameters = [xy_param, yaw_param, follow_path_xy_param]
         future = self.param_client.call_async(req)
         future.add_done_callback(
-            lambda f: self.get_logger().info(f'[goal_tolerance] xy={xy}, yaw={yaw} 적용 시도'))
+            lambda f: self._on_set_goal_tolerance_response(f, xy, yaw))
+
+    def _on_set_goal_tolerance_response(self, future, xy: float, yaw: float):
+        try:
+            results = future.result().results
+        except Exception as e:
+            self.get_logger().error(f'[goal_tolerance] xy={xy}, yaw={yaw} 적용 실패(서비스 예외): {e}')
+            return
+        if all(r.successful for r in results):
+            self.get_logger().info(f'[goal_tolerance] xy={xy}, yaw={yaw} (FollowPath 포함) 적용 성공')
+        else:
+            reasons = [r.reason for r in results if not r.successful]
+            self.get_logger().error(f'[goal_tolerance] xy={xy}, yaw={yaw} 적용 일부 실패: {reasons}')
+
+    # ================= [wifi 복귀 전용] progress_checker 이동 반경 =================
+    def set_progress_checker_radius(self, radius: float, time_allowance: float = 10.0):
+        # ! progress_checker.required_movement_radius(기본 0.5m)가 wp1 복귀 목표까지
+        # 남은 거리보다 크면, 로봇이 정상적으로 도착해도 "Failed to make progress"로
+        # 항상 실패한다. wifi 복귀 구간에서만 아주 작은 값으로 낮췄다가 복귀 완료 시
+        # 원래 값으로 되돌린다.
+        # ! movement_time_allowance(기본 10초)도 wifi 복귀 중에는 넉넉하게 늘린다.
+        # Pi CPU가 순간적으로 밀려 controller_server 제어 루프가 10Hz를 못 맞추는
+        # 순간(Control loop missed its desired rate 로그로 확인됨)에는 10초 안에
+        # required_movement_radius만큼도 못 움직이고 타임아웃될 수 있는데, 시간을
+        # 더 주면 밀린 만큼도 결국 누적 이동으로 통과할 여유가 생긴다.
+        if not self.param_client.wait_for_service(timeout_sec=1.0):
+            self.get_logger().warn('controller_server 파라미터 서비스 응답 없음')
+            return
+        radius_param = Parameter()
+        radius_param.name = 'progress_checker.required_movement_radius'
+        radius_param.value = ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=radius)
+        time_param = Parameter()
+        time_param.name = 'progress_checker.movement_time_allowance'
+        time_param.value = ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=time_allowance)
+        req = SetParameters.Request()
+        req.parameters = [radius_param, time_param]
+        future = self.param_client.call_async(req)
+        future.add_done_callback(
+            lambda f: self._on_set_progress_checker_response(f, radius, time_allowance))
+
+    def _on_set_progress_checker_response(self, future, radius: float, time_allowance: float):
+        try:
+            results = future.result().results
+        except Exception as e:
+            self.get_logger().error(f'[progress_checker] radius={radius}, time_allowance={time_allowance} 적용 실패(서비스 예외): {e}')
+            return
+        if all(r.successful for r in results):
+            self.get_logger().info(f'[progress_checker] radius={radius}, time_allowance={time_allowance} 적용 성공')
+        else:
+            reasons = [r.reason for r in results if not r.successful]
+            self.get_logger().error(f'[progress_checker] radius={radius}, time_allowance={time_allowance} 적용 일부 실패: {reasons}')
 
     # ================= [병합: A] costmap inflation_radius 제어 =================
     def set_inflation_radius(self, radius: float, clients=None):
@@ -2166,6 +2259,7 @@ class DrivingNode(Node):
         self.mode = DrivingMode.WIFI_RETURN_HOME
         self.wp_index = self.first_wp_index
         self.set_goal_tolerance(0.05, 0.1)   # wp1에 정확히 도착하도록 일시적으로 타이트하게
+        self.set_progress_checker_radius(0.02, time_allowance=25.0)  # 짧은 복귀 거리 + CPU 지연 여유
 
         if self.crank_timer is not None:
             self.crank_timer.cancel()
@@ -2186,7 +2280,7 @@ class DrivingNode(Node):
 
         self.pause_nav()  # 혹시 진행 중이던 이전 nav 목표가 있으면 취소
         self._stop_with_retry()
-        self._notify_tts_with_retry('Wifi가 연결되지 않았습니다. 처음 위치로 돌아갑니다.')
+        self._notify_tts_with_retry('와이파이가 연결되지 않았습니다. 처음 위치로 돌아갑니다.')
 
         self.send_waypoint(self.waypoints[self.first_wp_index])
 
