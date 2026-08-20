@@ -11,8 +11,6 @@ from rclpy.node import Node
 from rclpy.action import ActionClient
 from rclpy.duration import Duration
 from rclpy.executors import MultiThreadedExecutor
-from rclpy.callback_groups import ReentrantCallbackGroup, MutuallyExclusiveCallbackGroup
-
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 
 from rcl_interfaces.srv import SetParameters
@@ -35,7 +33,6 @@ from yeyu_control.states.linecourse_state import LineCourseState
 from yeyu_control.states.linecourse_state import SCourseState
 from ament_index_python.packages import get_package_share_directory
 from cv_bridge import CvBridge, CvBridgeError
-import subprocess
 import cv2
 import numpy as np
 from tf2_ros import Buffer, TransformListener
@@ -61,7 +58,6 @@ LED_COLOR_MAP = {
 }
 
 STAGE_TTS_LABELS = {   # 발음 가능한 한글 라벨을 별도로 관리
-    'NAV_WAYPOINT': '경로 주행',
     'TRACING_CRANK': '크랭크 코스',
     'TRACING_S': 'S자 코스',
     'SIGNAL_WAIT': '신호대기',
@@ -109,9 +105,8 @@ class DrivingNode(Node):
         self.data_lock = threading.Lock()
         self.crank_lock = threading.Lock()
         self.s_course_lock = threading.Lock()
-        self.camera_lock = threading.Lock()          
-        self._nav_result_lock = threading.Lock()   
-        self.wifi_check_lock = threading.Lock()
+        self.camera_lock = threading.Lock()          # [수정] on_camera에서 쓰는데 초기화가 빠져 있던 것 추가
+        self._nav_result_lock = threading.Lock()      # [수정] 마찬가지로 초기화 누락 추가
 
         self.wp_index = 0
         self.green_count = 0
@@ -211,7 +206,6 @@ class DrivingNode(Node):
         self.crank_turn_start_yaw = 0.0
         self.crank_turn_target_delta = 0.0
         self.current_yaw = 0.0
-        self.odom_received = False
         with self.data_lock:
             self.current_x = None
             self.current_y = None
@@ -222,18 +216,10 @@ class DrivingNode(Node):
         self.crank_turn_pending_delta = 0.0
         self.crank_creep_start_time = None
         self.crank_creep_target_sec = 0.0
-        self.crank_creep_start_x = None
-        self.crank_creep_start_y = None
-        self.odom_x = None
-        self.odom_y = None
 
         self.s_line_offset = None
         self.s_line_last_seen_time = self.get_clock().now() - Duration(seconds=999.0)
         self.s_last_valid_offset = None
-        self.s_course_state = SCourseState.TRACKING
-
-        self.fast_cb_group = ReentrantCallbackGroup()
-        self.camera_cb_group = MutuallyExclusiveCallbackGroup() 
 
         # --- 구독/발행 ---
         sensor_qos = QoSProfile(
@@ -243,8 +229,8 @@ class DrivingNode(Node):
             depth=1,
         )
 
-        self.create_subscription(CompressedImage, self.image_topic, self.on_camera, sensor_qos, callback_group=self.camera_cb_group)
-        self.create_subscription(CameraInfo, self.camera_info_topic, self.camera_info_callback, sensor_qos, callback_group=self.fast_cb_group)
+        self.create_subscription(CompressedImage, self.image_topic, self.on_camera, sensor_qos)
+        self.create_subscription(CameraInfo, self.camera_info_topic, self.camera_info_callback, sensor_qos)
         self.create_subscription(PoseWithCovarianceStamped, '/amcl_pose', self.on_amcl_pose, 10)
         self.create_subscription(Odometry, '/odom', self.on_odom, 10)
         self.create_subscription(IRSensor, 'sensor_bridge/ir_state', self.on_ir_sensor, 10)
@@ -284,11 +270,6 @@ class DrivingNode(Node):
             self.DEFAULT_LOCAL_INFLATION_RADIUS, self.DEFAULT_GLOBAL_INFLATION_RADIUS)
         self.startup_timer = self.create_timer(0.5, self.on_startup)
 
-        # ========== wifi 감지 상태 ===========
-        self.wifi_connected = True              # 현재 연결 상태
-        self.home_wp_index = 0      # 처음 위치
-        self.wifi_disconnection_handled = False # 한 번만 처리하기 위한 플래그
-
         # ========== 타이머 ===========
         self.timer_period = 1.0 / max(self.control_rate_hz, 0.5)
 
@@ -298,7 +279,6 @@ class DrivingNode(Node):
         self.s_course_timer = None
         self.vision_timer = self.create_timer(self.timer_period, self.camera_processing_loop)
         self.nav_result_timer = self.create_timer(self.timer_period, self._nav_result_loop)
-        self.wifi_timer = self.create_timer(5.0, self.wifi_polling_loop)
 
     # ================= 파라미터 =================
     def _declare_parking_parameters(self):
@@ -372,7 +352,7 @@ class DrivingNode(Node):
         self.CRANK_LINE_GRACE_SEC = 0.2
         self.CRANK_ARRIVAL_TOLERANCE_M = 0.15
         self.CRANK_LINE_LOST_TIMEOUT_SEC = 30.0
-        self.CRANK_CREEP_DISTANCE_M = 0.055 # 0.07 -> 0.06 -> 0.07 -> 0.06 -> 0.055(개별노드실행 때 성공butPM2에서 안 됨) -> 0.055
+        self.CRANK_CREEP_DISTANCE_M = 0.055 # 0.07 -> 0.06 -> 0.07 -> 0.06 -> 0.055
 
         self.S_ROI_TOP_RATIO = 0.6        # 0.85 -> 0.6 : 하단 40%만 봄
         self.S_LINE_BLACK_THRESHOLD = 60 
@@ -382,7 +362,7 @@ class DrivingNode(Node):
         self.S_ANGULAR_GAIN = 0.9
         self.S_ANGULAR_MAX = 0.6
         self.S_OFFSET_DEADBAND = 0.05
-        self.S_LINE_LOST_TIMEOUT_SEC = 15.0  #1.2 -> 30.0 -> 15.0
+        self.S_LINE_LOST_TIMEOUT_SEC = 30.0 #1.2 -> 30.0
         self.S_ARRIVAL_TOLERANCE_M = 0.3   # 0.10 -> 0.15 -> 0.2 -> 0.3
         self.S_OFFSET_JUMP_LIMIT = 0.6   # 0.4 -> 0.8 -> 0.6
         self.S_BOTTOM_BAND_HEIGHT_RATIO = 0.3   # 채택된 컨투어의 bounding box 중 하단 몇 %만으로 cx 계산할지
@@ -409,7 +389,7 @@ class DrivingNode(Node):
             return
             
         # [추가] tf뿐 아니라 실제 amcl_pose 값도 최소 한 번은 들어왔는지 확인
-
+        
         with self.data_lock:
             pose_ready = self.current_x is not None
         if not pose_ready:
@@ -430,7 +410,7 @@ class DrivingNode(Node):
 
         self._reset_crank_state()
         if self.crank_timer is None:
-            self.crank_timer = self.create_timer(self.timer_period, self.crank_control_loop, callback_group=self.fast_cb_group)
+            self.crank_timer = self.create_timer(self.timer_period, self.crank_control_loop)
 
     # ================= 구간 결과 보고 (공통 헬퍼) =================
     def _publish_status(self, mode: str, result: str, reason: str = ''):   # [병합: A] 판정 없이 상태만 알리는 헬퍼
@@ -489,14 +469,6 @@ class DrivingNode(Node):
             self._reset_crank_state()
         elif target == 'TRACING_S':
             self._reset_s_course_state()
-        elif target == 'ACCEL_ZONE':
-            self.accel_zone_enter_time = None
-            self.accel_zone_max_speed = 0.0
-            self.accel_sustain_start = None
-            self.accel_last_below_time = None
-
-        if target != 'TRACING_CRANK':
-            self.vision_enable = True
 
         self.get_logger().info(f'[RETRY] {target} 재시험 시작 → wp{entry["wp_index"] + 1}로 이동')
         label = STAGE_TTS_LABELS.get(target, target)
@@ -744,9 +716,6 @@ class DrivingNode(Node):
         
         if self.is_estopped:
             return
-        # ! 이게 없으면 크랭크코스에서 버벅이며 실패함
-        # if self.vision_enable is False:
-        #     return
         if not msg.data:
             return
         try:
@@ -756,6 +725,13 @@ class DrivingNode(Node):
             return
 
         flipped = cv2.flip(cv_image, -1)
+
+        try:
+            out_msg = self.bridge.cv2_to_compressed_imgmsg(flipped, dst_format='jpg')
+            out_msg.header = msg.header
+            self.image_pub.publish(out_msg)
+        except Exception as e:
+            self.get_logger().warn(f'republish 실패: {e}')
 
         with self.camera_lock:
             self.latest_frame = flipped
@@ -959,7 +935,7 @@ class DrivingNode(Node):
 
         gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
         mask = cv2.inRange(gray, 0, self.S_LINE_BLACK_THRESHOLD)   #그레이스케일 + 밝기값이 0~threshold 사이인 곳은 흰색만 남기겠다(이진화)
-        # #  자동노출로 인해 밝기가 달라지면 객체 인식이 안됨 -> 이미지 밝기 분포를 자동 분석해 threshold를 동적으로 결정(실패)
+        # # ! 자동노출로 인해 밝기가 달라지면 객체 인식이 안됨 -> 이미지 밝기 분포를 자동 분석해 threshold를 동적으로 결정
         # blur = cv2.GaussianBlur(gray, (5, 5), 0)
         # _, mask = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)  
 
@@ -983,8 +959,8 @@ class DrivingNode(Node):
 
             x, y, cw, ch = cv2.boundingRect(c)
 
-            if cw > w * 0.5:    # 위에 붙어있고 + 폭이 넓으면 벽/가구
-                reason = 'too_wide'
+            if y <= 3 or cw > w * 0.5:    # 위에 붙어있고 + 폭이 넓으면 벽/가구
+                reason = 'top_edge' if y <= 3 else 'too_wide'
                 debug_candidates.append((x, y, cw, ch, area, 0.0, reason))  # 탈락 사유 표시
                 continue
 
@@ -1004,24 +980,16 @@ class DrivingNode(Node):
                 continue
             cx = x + (M['m10'] / M['m00'])
 
-            # 오른쪽 커브일 때만 K=100으로 설정(변화 없어서 취소)
-            # CX_SWITCH_MARGIN = 20  # 픽셀, 필요하면 조정
+            this_offset = (cx - w / 2.0 + 100) / (w / 2.0+ 100)
 
-            # if cx < w / 2.0 - CX_SWITCH_MARGIN:
-            #     K = 100
-            # else:
-            #     K = 60
-
-            this_offset = (cx - w / 2.0 - 70) / (w / 2.0 - 70)
-
-            # # solidity 계산
-            # hull = cv2.convexHull(c)
-            # hull_area = cv2.contourArea(hull)
-            # solidity = area / hull_area if hull_area > 0 else 0
-            # # TODO 디버그 텍스트 보고 주석해체
-            # if solidity < 0.25: # 삐뚤삐뚤하고 구멍 많은 형태는 무시
-            #     debug_candidates.append((x, y, cw, ch, area,'low_solidity'))
-            #     continue
+            # solidity 계산
+            hull = cv2.convexHull(c)
+            hull_area = cv2.contourArea(hull)
+            solidity = area / hull_area if hull_area > 0 else 0
+            # TODO 디버그 텍스트 보고 주석해체
+            if solidity < 0.25: # 삐뚤삐뚤하고 구멍 많은 형태는 무시
+                debug_candidates.append((x, y, cw, ch, area, solidity, 'low_solidity'))
+                continue
 
             rejected_reason = None  
 
@@ -1031,7 +999,7 @@ class DrivingNode(Node):
                     rejected_reason = 'jump_limit' # TODO 디버그용 추가
                     #continue #TODO 디버그용 주석처리
 
-            debug_candidates.append((x, y, cw, ch, area, 0.0, rejected_reason))  # TODO 디버그용 출력
+            debug_candidates.append((x, y, cw, ch, area, solidity, rejected_reason))  # TODO 디버그용 출력
             if rejected_reason is not None:
                 continue    
 
@@ -1044,8 +1012,7 @@ class DrivingNode(Node):
             candidates.sort(key=lambda t: t[0], reverse=True)
             best_contour = candidates[0][1]
             offset = candidates[0][2]
-            # cx_full = (offset * (w / 2.0 - K)) + (w / 2.0 - K)
-            cx_full = (offset * (w / 2.0 - 70)) + (w / 2.0 - 70)
+            cx_full = (offset * (w / 2.0+ 100)) + (w / 2.0+ 100)
             self.s_last_valid_offset = offset   # 성공했을 때만 "최근 유효 위치" 갱신
 
             # 디버그용: 채택된 컨투어의 밴드 영역 좌표도 구해둠
@@ -1063,20 +1030,11 @@ class DrivingNode(Node):
         return offset
 
     def on_odom(self, msg):
-        now = self.get_clock().now()
-        msg_time = rclpy.time.Time.from_msg(msg.header.stamp)
-        delay = (now - msg_time).nanoseconds / 1e9
-        if delay > 0.1:
-            self.get_logger().warn(f'odom 지연: {delay:.3f}s')
-
         q = msg.pose.pose.orientation
         self.current_yaw = math.atan2(
             2 * (q.w * q.z + q.x * q.y),
             1 - 2 * (q.y * q.y + q.z * q.z))
-        self.odom_received = True
         self.current_linear_x = msg.twist.twist.linear.x   # [수정] accel_zone_check_loop가 쓸 최신 속도 저장
-        self.odom_x = msg.pose.pose.position.x
-        self.odom_y = msg.pose.pose.position.y
 
     def accel_zone_check_loop(self):
         if self.is_estopped:
@@ -1609,8 +1567,7 @@ class DrivingNode(Node):
             self.crank_line_lost_since = None
             self.last_meaningful_ir = (0, 1, 0)
             self.crank_turn_pending_delta = 0.0
-            self.crank_creep_start_time = None 
-            self.crank_course_min_dist = None 
+            self.crank_creep_start_time = None
 
     def _handle_crank_following(self):
         ir = (self.ir_l, self.ir_c, self.ir_r)
@@ -1676,41 +1633,17 @@ class DrivingNode(Node):
     def _start_crank_creep_forward(self, target_delta_deg: float):
         self.crank_turn_pending_delta = target_delta_deg
         self.crank_creep_start_time = self.get_clock().now()
-
-        # # ! PM2 CPU문제로 인해 특정시간 만큼이동 대신 odom 받아서 dist까지 이동으로 변경
         self.crank_creep_target_sec = self.CRANK_CREEP_DISTANCE_M / self.CRANK_LINEAR_SPEED
-        # with self.data_lock:
-        #     self.crank_creep_start_x = self.odom_x
-        #     self.crank_creep_start_y = self.odom_y
-
         self.crank_state = LineCourseState.CREEPING
         self.publish_cmd(self.CRANK_LINEAR_SPEED, 0.0)
         self.get_logger().info(f'[TRACING_CRANK] CREEPING 시작, target_sec={self.crank_creep_target_sec:.3f}')
-        # self.get_logger().info(f'[TRACING_CRANK] CREEPING 시작, target_sec={self.CRANK_CREEP_DISTANCE_M:.3f}')
 
     def _handle_crank_creeping(self):
         elapsed = self._elapsed(self.crank_creep_start_time)
         if elapsed >= self.crank_creep_target_sec:
             self._start_crank_turn(self.crank_turn_pending_delta)
 
-        # x, y = self.odom_x, self.odom_y
-
-        # if x is None or self.crank_creep_start_x is None:
-        #     # 위치 모르면 시간으로 폴백
-        #     self.get_logger().info(f'x is None or self.crank_creep_start_x is None')
-        #     elapsed = self._elapsed(self.crank_creep_start_time)
-        #     if elapsed >= (self.CRANK_CREEP_DISTANCE_M / self.CRANK_LINEAR_SPEED):
-        #         self._start_crank_turn(self.crank_turn_pending_delta)
-        #     return
-
-        # dist = math.hypot(x - self.crank_creep_start_x, y - self.crank_creep_start_y)
-        # if dist >= self.CRANK_CREEP_DISTANCE_M:
-        #     self._start_crank_turn(self.crank_turn_pending_delta)
-
     def _start_crank_turn(self, target_delta_deg: float):
-        if not self.odom_received:
-            self.get_logger().warn('odom 아직 없음 - 회전 시작 보류')
-            return   # 회전 시작 자체를 막음
         self.crank_turn_start_yaw = self.current_yaw
         self.crank_turn_target_delta = math.radians(target_delta_deg)
         self.crank_state = LineCourseState.TURNING
@@ -1738,36 +1671,15 @@ class DrivingNode(Node):
         self.publish_cmd(0.0, direction * self.CRANK_TURN_ANGULAR_SPEED)
 
     def _check_crank_arrival(self):
-        try:
-            t = self.tf_buffer.lookup_transform('map', 'base_link', rclpy.time.Time())
-            x = t.transform.translation.x
-            y = t.transform.translation.y
-        except Exception as e:
-            self._throttled_warn(f'[TRACING_CRANK] tf lookup 실패, amcl_pose로 폴백: {e}')
-            with self.data_lock:
-                x, y = self.current_x, self.current_y
-            if x is None:
-                self.get_logger().warn('[TRACING_CRANK] 현재 위치를 알 수 없습니다.')
-                return
-        # with self.data_lock:
-        #     x, y = self.current_x, self.current_y
+        with self.data_lock:
+            x, y = self.current_x, self.current_y
 
-        # if x is None:
-        #     self.get_logger().warn('[TRACING_CRANK] 현재 위치를 알 수 없습니다.')
-        #     return
-        
+        if x is None:
+            self.get_logger().warn('[TRACING_CRANK] 현재 위치를 알 수 없습니다.')
+            return
         target = self.waypoints[1]
         dist = math.hypot(x - float(target['x']), y - float(target['y']))
-
-
-        NEAR_MARGIN = self.CRANK_ARRIVAL_TOLERANCE_M * 1.5
-        if dist <= NEAR_MARGIN:
-            if self.crank_course_min_dist is None or dist < self.crank_course_min_dist:
-                self.crank_course_min_dist = dist
-            elif dist > self.crank_course_min_dist + 0.05:
-                self.get_logger().info(f'[TRACING_CRANK] 최근접점({self.crank_course_min_dist:.3f}m) 통과 판정')
-                self._on_crank_done()
-                return
+        # self.get_logger().info(f'[CRANK] 현재=({x:.3f}, {y:.3f}), 목표=({target["x"]}, {target["y"]}), dist={dist:.3f}m')  # ← 추가
         if dist <= self.CRANK_ARRIVAL_TOLERANCE_M:
             self._on_crank_done()
 
@@ -1851,36 +1763,16 @@ class DrivingNode(Node):
             self.s_line_offset = None
             self.s_line_last_seen_time = self.get_clock().now()
             self.s_last_valid_offset = None   # 추가: 코스 새로 시작할 때 초기화
-            self.s_course_min_dist = None  # 최소 거리 추적용
 
     def _check_s_course_arrival(self):
-        try:
-            t = self.tf_buffer.lookup_transform('map', 'base_link', rclpy.time.Time())
-            x = t.transform.translation.x
-            y = t.transform.translation.y
-        except Exception as e:
-            self._throttled_warn(f'[TRACING_S] tf lookup 실패, amcl_pose로 폴백: {e}')
-            with self.data_lock:
-                x, y = self.current_x, self.current_y
-            if x is None:
-                self.get_logger().warn('[TRACING_S] 현재 위치를 알 수 없습니다.')
-                return
-        # with self.data_lock:
-        #     x, y = self.current_x, self.current_y
-        # if x is None:
-        #     self.get_logger().warn('[TRACING_CRANK] 현재 위치를 알 수 없습니다.')
-        #     return
+        with self.data_lock:
+            x, y = self.current_x, self.current_y
+        if x is None:
+            self.get_logger().warn('[TRACING_CRANK] 현재 위치를 알 수 없습니다.')
+            return
         target = self.waypoints[3]
         dist = math.hypot(x - float(target['x']), y - float(target['y'])) 
-
-        NEAR_MARGIN = self.S_ARRIVAL_TOLERANCE_M * 1.5
-        if dist <= NEAR_MARGIN:
-            if self.s_course_min_dist is None or dist < self.s_course_min_dist:
-                self.s_course_min_dist = dist
-            elif dist > self.s_course_min_dist + 0.05:   # 최근접점 지나 다시 멀어지기 시작
-                self.get_logger().info(f'[S_COURSE] 최근접점({self.s_course_min_dist:.3f}m) 통과 판정')
-                self._on_s_course_done()
-                return
+        self.get_logger().info(f'[S_COURSE] 현재=({x:.3f}, {y:.3f}), 목표=({target["x"]}, {target["y"]}), dist={dist:.3f}m')
         if dist <= self.S_ARRIVAL_TOLERANCE_M:
             self._on_s_course_done()
 
@@ -1964,48 +1856,8 @@ class DrivingNode(Node):
         if overall_pass:
             self.notify_tts('전체 코스를 완료했습니다. 모든 구간을 성공적으로 통과했습니다.')
         else:
-            fail_stages = [STAGE_TTS_LABELS.get(name,name) for name, r in self.stage_results.items() if r == StageResult.FAIL]
+            fail_stages = [name for name, r in self.stage_results.items() if r == StageResult.FAIL]
             self.notify_tts(f'전체 코스를 완료했습니다. {", ".join(fail_stages)} 구간에서 실패했습니다.')
-
-    def check_wifi_status(self) -> bool:
-        try:
-            result = subprocess.run(
-                ['nmcli', 'networking', 'connectivity'],
-                capture_output=True,
-                timeout=2,
-                text=True
-            )
-            status = result.stdout.strip()
-            return status == 'full'
-        except Exception as e:
-            self.get_logger().warn(f'Wifi 상태 확인 실패: {e}')
-            return True
-
-    def wifi_polling_loop(self):
-        current_status = self.check_wifi_status()
-
-        with self.wifi_check_lock:
-            if not current_status and self.wifi_connected:
-                self.wifi_connected = False
-                self.get_logger().error('Wifi 연결 끊김!')
-                self.on_wifi_disconnected()
-            elif current_status and not self.wifi_connected:
-                self.wifi_connected = True
-                self.get_logger().info('Wifi 다시 연결됨')
-                self.wifi_disconnection_handled = False
-
-    def on_wifi_disconnected(self):
-        if self.wifi_disconnection_handled:
-            return
-
-        self.wifi_disconnection_handled = True
-        self.get_logger().error('[Wifi 단절] 처음 위치로 돌아갑니다')
-
-        self.publish_cmd(0.0, 0.0)
-        self.notify_tts('Wifi가 연결되지 않았습니다. 처음 위치로 돌아갑니다.')
-
-        home_wp = self.waypoints[self.home_wp_index]
-        self.send_waypoint(home_wp)
 
     def destroy_node(self):
         for _ in range(5):

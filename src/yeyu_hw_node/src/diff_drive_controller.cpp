@@ -30,5 +30,5 @@ DiffDriveController::DiffDriveController(const float wheel_seperation, const flo
     wheel_seperation,
     wheel_radius);
 
-  RCLCPP_INFO(this->get_logger(), "김예은 메롱!");
+  RCLCPP_INFO(this->get_logger(), "Run!");
 }
