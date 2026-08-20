@@ -60,11 +60,9 @@ DEBUG_PANEL_INFO = {   # [추가] 모드 → (패널 제목, 토픽 표시용 �
 DEFAULT_DEBUG_TITLE = '디버그'
 DEFAULT_DEBUG_TOPIC = '대기 중'
 
-# [추가] driving_status.retry_count 표시 오프셋
-# msg.retry_count가 "0=첫 시도, 1=1차 재시도, 2=2차 재시도 ..." 형태라면 RETRY_COUNT_DISPLAY_OFFSET = 1
-#   → 화면에는 "1회차", "2회차", "3회차" 로 보이게 됨 (retry_count + 1)
-# 만약 msg.retry_count가 이미 "몇 번째 시도인지"를 그대로 담고 있다면 (1=1회차) 아래 값을 0으로 바꾸면 됨.
-# 실제 driving_waypoint_node.py에서 retry_count를 어느 시점에 증가시키는지 확인 후 필요하면 이 값만 조정하면 된다.
+# [추가] 시도 횟수 표시 오프셋
+# self.stage_attempt[stage]는 "그 구간에서 재시험이 수락된 횟수"를 의미한다 (0 = 아직 재시험 안 함 = 1회차).
+# 화면에는 항상 +1을 해서 "몇 번째 시도인지"로 보여준다 (0 → 1회차, 1 → 2회차, 2 → 3회차 ...).
 RETRY_COUNT_DISPLAY_OFFSET = 1
 
 # ================= 팔레트 =================
@@ -385,7 +383,12 @@ class MainWindow(QMainWindow):
         self.stage_dots = {}
         self.stage_status_labels = {}
         self.stage_reason = {}
-        self.stage_attempt = {}   # [추가] 구간별 최근 retry_count 캐시 (mode → int)
+        # [변경] driving_node의 DrivingStatus.retry_count가 재시험 간 정상적으로 증가하지 않는
+        # 이슈가 있어(예: 2회차 재시도 후에도 계속 1회차로 표시됨), 시도 횟수는 GUI가 자체적으로
+        # 관리한다. self.stage_attempt[stage] = "그 구간에서 재시험이 실제로 수락된 횟수"
+        # (0 = 아직 재시험한 적 없음 = 1회차, 1 = 재시험 1번 수락됨 = 2회차, ...)
+        # 값이 바뀌는 지점은 _on_retry_result() 단 한 곳뿐이다.
+        self.stage_attempt = {}
 
         for stage in STAGE_ROWS:
             chip = QFrame()
@@ -413,7 +416,7 @@ class MainWindow(QMainWindow):
             self.stage_dots[stage] = dot
             self.stage_status_labels[stage] = status_label
             self.stage_reason[stage] = ''
-            self.stage_attempt[stage] = 0   # [추가]
+            self.stage_attempt[stage] = 0   # [추가] 초기값 0 = 아직 재시험 없음(1회차)
 
         layout.addLayout(chips_row)
         return layout
@@ -591,11 +594,15 @@ class MainWindow(QMainWindow):
         result = status['result']
         reason = status['reason']
         wp_index = status['wp_index']
-        retry_count = status.get('retry_count', 0)   # [추가] 없는 경우 대비 기본값 0
+        # [변경] status['retry_count']는 driving_node 쪽 필드가 정상 증가하지 않는 이슈가 있어
+        # 표시에는 더 이상 사용하지 않는다 (참고용으로만 남겨둠). 실제 표시 값은 self.stage_attempt
+        # (GUI가 재시험 수락 시점에 직접 카운트한 값)을 사용한다.
+        _node_retry_count = status.get('retry_count', 0)   # 디버깅/비교용 참고값
 
         if mode == 'RETRY_COMPLETE':
+            # 이 분기에서는 reason 필드에 재시험이 끝난 구간명(mode 코드)이 담겨 온다.
             target_label = STAGE_LABELS.get(reason, reason)
-            attempt_no = retry_count + RETRY_COUNT_DISPLAY_OFFSET   # [추가]
+            attempt_no = self.stage_attempt.get(reason, 0) + RETRY_COUNT_DISPLAY_OFFSET   # [변경]
             self.mode_value.setText(f'{target_label} 재시험 종료 ({attempt_no}회차)')   # [변경]
             return
 
@@ -628,11 +635,11 @@ class MainWindow(QMainWindow):
         if mode in STAGE_ROWS:
             dot = self.stage_dots[mode]
             status_label = self.stage_status_labels[mode]
-            self.stage_attempt[mode] = retry_count   # [추가] 구간별 최근 시도 횟수 캐시
+            local_attempt = self.stage_attempt.get(mode, 0)   # [변경] GUI 자체 카운트 사용
 
             base_text = RESULT_TEXT.get(result, result or '대기중')
-            attempt_no = retry_count + RETRY_COUNT_DISPLAY_OFFSET
-            if retry_count > 0:   # [추가] 최소 한 번은 재시험을 거친 경우에만 횟수 표기
+            attempt_no = local_attempt + RETRY_COUNT_DISPLAY_OFFSET
+            if local_attempt > 0:   # [추가] 재시험을 한 번이라도 거친 구간에만 횟수 표기
                 status_label.setText(f'{base_text} ({attempt_no}회차)')   # [변경]
             else:
                 status_label.setText(base_text)
@@ -644,7 +651,7 @@ class MainWindow(QMainWindow):
             self.stage_dots[mode].parent().setToolTip(reason)
 
         if result == 'FAIL':
-            self._append_event(mode, f'{reason}', retry_count)   # [변경] retry_count 전달
+            self._append_event(mode, f'{reason}', self.stage_attempt.get(mode, 0))   # [변경] GUI 자체 카운트 전달
 
         active_target = RETRY_TARGETS.get(self.active_trajectory, (None,))[0]
         if result in ('PASS', 'FAIL') and mode == active_target:
@@ -754,6 +761,10 @@ class MainWindow(QMainWindow):
         if not accepted:
             QMessageBox.warning(self, '재시험 시작 실패', message)
             return
+        # [추가] 재시험 요청이 실제로 수락된 시점에만 해당 구간의 시도 횟수를 1 증가시킨다.
+        # driving_node의 DrivingStatus.retry_count 필드가 정상 증가하지 않아도, 이 값은
+        # GUI가 재시험 버튼 클릭 → 서비스 수락을 직접 확인한 순간에만 올라가므로 항상 정확하다.
+        self.stage_attempt[target] = self.stage_attempt.get(target, 0) + 1   # [추가]
         if idx is not None:
             self.active_trajectory = idx
             self._refresh_trajectory_highlight()
