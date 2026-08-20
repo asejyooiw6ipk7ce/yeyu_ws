@@ -1,0 +1,4 @@
+# lo_alias_watchdog.sh: wlan0 단절 시 loopback에 IP 별칭을 걸기 위한 최소 권한
+# 설치: sudo install -o root -g root -m 0440 lo_alias_watchdog.sudoers /etc/sudoers.d/lo_alias_watchdog
+yeyu ALL=(root) NOPASSWD: /usr/sbin/ip addr add 192.168.230.100/32 dev lo
+yeyu ALL=(root) NOPASSWD: /usr/sbin/ip addr del 192.168.230.100/32 dev lo

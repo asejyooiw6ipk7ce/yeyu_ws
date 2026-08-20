@@ -174,6 +174,7 @@ class DrivingNode(Node):
 
         self.nav_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
         self.current_goal_handle = None
+        self.nav_goal_generation = 0  # ! 취소된 옛 goal의 결과가 새 goal 결과로 오인되지 않도록 goal마다 부여하는 세대 번호
         self.nav_fail_count = 0
 
         self.retry_srv = self.create_service(
@@ -286,8 +287,15 @@ class DrivingNode(Node):
 
         # ========== wifi 감지 상태 ===========
         self.wifi_connected = True              # 현재 연결 상태
-        self.home_wp_index = 0      # 처음 위치
+        self.first_wp_index = 0      # 처음 위치
         self.wifi_disconnection_handled = False # 한 번만 처리하기 위한 플래그
+        self.wifi_fail_count = 0
+        self.WIFI_FAIL_THRESHOLD = 2  # 연속 2번(10초) 실패해야 진짜 끊김으로 판정
+        # ! wifi가 오래 끊기면 CycloneDDS가 로컬 프로세스 통신까지 wlan0 IP로 하는 탓에
+        # nav goal 전송/응답 자체가 유실될 수 있고, 그러면 wifi가 다시 붙어도 아무도
+        # 재전송을 안 해서 로봇이 영구히 멈춰있게 된다. 도착 확인 플래그로 이를 감지해서
+        # 재연결 시점에 wp1 목표를 재전송한다.
+        self.wifi_return_arrived = True   # 복귀 중이 아니거나 이미 도착했으면 True
 
         # ========== 타이머 ===========
         self.timer_period = 1.0 / max(self.control_rate_hz, 0.5)
@@ -568,17 +576,27 @@ class DrivingNode(Node):
         goal.pose.pose.orientation.z = qz
         goal.pose.pose.orientation.w = qw
 
+        self.nav_goal_generation += 1
+        my_generation = self.nav_goal_generation
         future = self.nav_client.send_goal_async(goal)
-        future.add_done_callback(self.on_goal_response)
+        future.add_done_callback(lambda f: self.on_goal_response(f, my_generation))
 
-    def on_goal_response(self, future):
+    def on_goal_response(self, future, generation):
         goal_handle = future.result()
+        if generation != self.nav_goal_generation:
+            # ! pause_nav() 직후 곧바로 send_waypoint()를 호출하는 경로(예: wifi 복귀)에서
+            # 취소한 이전 goal의 결과가 새 goal 결과로 오인되는 경쟁 상태를 막기 위해
+            # goal마다 세대 번호를 매기고, 이미 대체된 세대의 콜백은 여기서 걸러낸다.
+            self.get_logger().info(f'[on_goal_response] 이미 대체된 목표(gen={generation}) 무시')
+            if goal_handle.accepted:
+                goal_handle.cancel_goal_async()
+            return
         if not goal_handle.accepted:
             self.get_logger().warn('경로 목표가 거부됨')
             return
         self.current_goal_handle = goal_handle
         result_future = goal_handle.get_result_async()
-        result_future.add_done_callback(self.on_nav_result)
+        result_future.add_done_callback(lambda f: self.on_nav_result(f, generation))
 
     def pause_nav(self):
         if self.current_goal_handle is not None:
@@ -587,7 +605,10 @@ class DrivingNode(Node):
     def resume_nav(self, wp):
         self.send_waypoint(wp)
 
-    def on_nav_result(self, future):
+    def on_nav_result(self, future, generation):
+        if generation != self.nav_goal_generation:
+            self.get_logger().info(f'[on_nav_result] 이미 대체된 목표(gen={generation})의 결과 무시')
+            return
         if self.is_estopped:
             return
         result = future.result()
@@ -620,6 +641,15 @@ class DrivingNode(Node):
 
         if status == GoalStatus.STATUS_SUCCEEDED:
             self.nav_fail_count = 0
+
+            if self.mode == DrivingMode.WIFI_RETURN_HOME:   # wifi 단절로 wp1 복귀 중이었던 경우
+                self.wifi_return_arrived = True
+                self.get_logger().info('[Wifi 단절] 처음 위치로 복귀 완료')
+                self._publish_cmd(Twist())
+                self._publish_status('WIFI_RETURN_HOME', 'DONE', 'wifi 단절로 처음 위치로 복귀')
+                self.set_goal_tolerance(0.25, 0.25)   # 일반 주행용 기본값으로 원복
+                self.set_progress_checker_radius(0.5)   # 일반 주행용 기본값으로 원복
+                return
 
             if self.wp_index == 4:   # wp5(미로 시작점) 도착 → wp6(신호등 진입점)로
                 self.wp_index = 5
@@ -739,10 +769,26 @@ class DrivingNode(Node):
         self.ir_c = int(msg.ir_sensor_c)
         self.ir_r = int(msg.ir_sensor_r)
 
+    # camera_processing_loop가 실제로 latest_frame을 읽는 모드만 여기 포함(코드 전체에서
+    # latest_frame을 쓰는 곳은 그 함수 하나뿐이라 이 목록과 항상 정확히 일치해야 한다).
+    _VISION_ACTIVE_MODES = frozenset({
+        DrivingMode.SIGNAL_WAIT,
+        DrivingMode.ACCEL_ZONE,
+        DrivingMode.PARKING,
+        DrivingMode.TRACING_S,
+    })
+
     # ================= 카메라: 신호/표지판/ArUco 통합 콜백 (가벼움: 저장만) =================
     def on_camera(self, msg: CompressedImage):
-        
+
         if self.is_estopped:
+            return
+        if self.mode not in self._VISION_ACTIVE_MODES:
+            # ! 매 프레임(수십 Hz)마다 JPEG 디코드+flip을 하는 게 Pi CPU를 상당히 잡아먹는데,
+            # 정작 그 프레임을 쓰는 건 camera_processing_loop가 이 4개 모드에서만이다.
+            # WIFI_RETURN_HOME을 포함한 NAV_TO_*/TRACING_CRANK 등 나머지 구간에서는
+            # latest_frame을 아무도 안 읽으므로(grep으로 확인) 디코드 자체를 건너뛴다.
+            # controller_server의 "Control loop missed its desired rate"의 원인 중 하나였음.
             return
         # ! 이게 없으면 크랭크코스에서 버벅이며 실패함
         # if self.vision_enable is False:
@@ -840,7 +886,7 @@ class DrivingNode(Node):
     def on_obstacle_distance(self, msg: Float32):
         if self.is_estopped or self.is_handling_obstacle:
             return
-        if self.mode != DrivingMode.NAV_TO_END:
+        if self.mode not in (DrivingMode.NAV_TO_END, DrivingMode.WIFI_RETURN_HOME):
             return
         if msg.data <= self.OBSTACLE_STOP_DISTANCE_CM:
             self.get_logger().warn(f'[OBSTACLE] 장애물 감지: {msg.data:.1f} cm')
@@ -1067,7 +1113,9 @@ class DrivingNode(Node):
         msg_time = rclpy.time.Time.from_msg(msg.header.stamp)
         delay = (now - msg_time).nanoseconds / 1e9
         if delay > 0.1:
-            self.get_logger().warn(f'odom 지연: {delay:.3f}s')
+            # ! throttle 없이 매 odom 메시지마다 찍으면 지연이 심할 때(=메시지가 잦을 때) 로그 폭주로
+            # CPU를 더 깎아먹어 지연을 악화시키는 악순환이 생길 수 있어 다른 경고들처럼 throttle 적용
+            self._throttled_warn(f'odom 지연: {delay:.3f}s')
 
         q = msg.pose.pose.orientation
         self.current_yaw = math.atan2(
@@ -1540,6 +1588,87 @@ class DrivingNode(Node):
         except Exception as e:
             self.get_logger().warn(f'[set_speed] 응답 처리 실패: {e}')
 
+    # ================= [wifi 복귀 전용] 목표 도달 허용오차 =================
+    def set_goal_tolerance(self, xy: float, yaw: float):
+        # ! 일반 웨이포인트 주행용 기본값(0.25/0.25)은 건드리지 않고, wifi 복귀
+        # 목표에만 잠깐 타이트하게 걸었다가 도착 후 원래대로 되돌리는 용도.
+        #
+        # ! xy_goal_tolerance는 controller_server 안에 두 개가 따로 있다:
+        # general_goal_checker.xy_goal_tolerance(최종 "도착" 판정, 여기서 0.05로 낮춤)와
+        # FollowPath(DWB).xy_goal_tolerance(로컬플래너가 "거의 다 왔다"고 보고 제자리
+        # 회전 위주로 전환하는 내부 기준, 기본 0.25). 이걸 같이 안 낮추면 목표까지 남은
+        # 거리가 0.25~0.05m 구간일 때 DWB가 먼저 회전모드로 들어가 위치가 거의 안
+        # 바뀌는데, 도착 판정은 아직 0.05m 기준이라 안 끝나서 progress_checker가
+        # "10초간 이동 없음"으로 보고 Failed to make progress를 던진다. 그래서 두
+        # 파라미터를 항상 같이 맞춘다.
+        if not self.param_client.wait_for_service(timeout_sec=1.0):
+            self.get_logger().warn('controller_server 파라미터 서비스 응답 없음')
+            return
+        xy_param = Parameter()
+        xy_param.name = 'general_goal_checker.xy_goal_tolerance'
+        xy_param.value = ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=xy)
+        yaw_param = Parameter()
+        yaw_param.name = 'general_goal_checker.yaw_goal_tolerance'
+        yaw_param.value = ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=yaw)
+        follow_path_xy_param = Parameter()
+        follow_path_xy_param.name = 'FollowPath.xy_goal_tolerance'
+        follow_path_xy_param.value = ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=xy)
+        req = SetParameters.Request()
+        req.parameters = [xy_param, yaw_param, follow_path_xy_param]
+        future = self.param_client.call_async(req)
+        future.add_done_callback(
+            lambda f: self._on_set_goal_tolerance_response(f, xy, yaw))
+
+    def _on_set_goal_tolerance_response(self, future, xy: float, yaw: float):
+        try:
+            results = future.result().results
+        except Exception as e:
+            self.get_logger().error(f'[goal_tolerance] xy={xy}, yaw={yaw} 적용 실패(서비스 예외): {e}')
+            return
+        if all(r.successful for r in results):
+            self.get_logger().info(f'[goal_tolerance] xy={xy}, yaw={yaw} (FollowPath 포함) 적용 성공')
+        else:
+            reasons = [r.reason for r in results if not r.successful]
+            self.get_logger().error(f'[goal_tolerance] xy={xy}, yaw={yaw} 적용 일부 실패: {reasons}')
+
+    # ================= [wifi 복귀 전용] progress_checker 이동 반경 =================
+    def set_progress_checker_radius(self, radius: float, time_allowance: float = 10.0):
+        # ! progress_checker.required_movement_radius(기본 0.5m)가 wp1 복귀 목표까지
+        # 남은 거리보다 크면, 로봇이 정상적으로 도착해도 "Failed to make progress"로
+        # 항상 실패한다. wifi 복귀 구간에서만 아주 작은 값으로 낮췄다가 복귀 완료 시
+        # 원래 값으로 되돌린다.
+        # ! movement_time_allowance(기본 10초)도 wifi 복귀 중에는 넉넉하게 늘린다.
+        # Pi CPU가 순간적으로 밀려 controller_server 제어 루프가 10Hz를 못 맞추는
+        # 순간(Control loop missed its desired rate 로그로 확인됨)에는 10초 안에
+        # required_movement_radius만큼도 못 움직이고 타임아웃될 수 있는데, 시간을
+        # 더 주면 밀린 만큼도 결국 누적 이동으로 통과할 여유가 생긴다.
+        if not self.param_client.wait_for_service(timeout_sec=1.0):
+            self.get_logger().warn('controller_server 파라미터 서비스 응답 없음')
+            return
+        radius_param = Parameter()
+        radius_param.name = 'progress_checker.required_movement_radius'
+        radius_param.value = ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=radius)
+        time_param = Parameter()
+        time_param.name = 'progress_checker.movement_time_allowance'
+        time_param.value = ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=time_allowance)
+        req = SetParameters.Request()
+        req.parameters = [radius_param, time_param]
+        future = self.param_client.call_async(req)
+        future.add_done_callback(
+            lambda f: self._on_set_progress_checker_response(f, radius, time_allowance))
+
+    def _on_set_progress_checker_response(self, future, radius: float, time_allowance: float):
+        try:
+            results = future.result().results
+        except Exception as e:
+            self.get_logger().error(f'[progress_checker] radius={radius}, time_allowance={time_allowance} 적용 실패(서비스 예외): {e}')
+            return
+        if all(r.successful for r in results):
+            self.get_logger().info(f'[progress_checker] radius={radius}, time_allowance={time_allowance} 적용 성공')
+        else:
+            reasons = [r.reason for r in results if not r.successful]
+            self.get_logger().error(f'[progress_checker] radius={radius}, time_allowance={time_allowance} 적용 일부 실패: {reasons}')
+
     # ================= [병합: A] costmap inflation_radius 제어 =================
     def set_inflation_radius(self, radius: float, clients=None):
         if clients is None:
@@ -1943,6 +2072,43 @@ class DrivingNode(Node):
         self.audio_pub.publish(msg)
         self.get_logger().info(f'[TTS] {text}')
 
+    def _notify_tts_with_retry(self, text: str, attempts: int = 3, interval_sec: float = 1.5):
+        # ! wifi 단절처럼 네트워크 자체가 흔들리는 순간에 발행하면, CycloneDDS가
+        # 로컬 프로세스 간 통신도 loopback이 아니라 wlan0 IP로 하기 때문에
+        # 이 메시지 한 번이 통째로 유실될 수 있다(odom/tf처럼 계속 재발행되는
+        # 토픽과 달리 1회성이라 스스로 복구가 안 됨). 그래서 일정 간격으로 재발행한다.
+        self.notify_tts(text)
+        remaining = attempts - 1
+        if remaining <= 0:
+            return
+        state = {'remaining': remaining}
+
+        def _resend():
+            self.notify_tts(text)
+            state['remaining'] -= 1
+            if state['remaining'] <= 0:
+                state['timer'].cancel()
+
+        state['timer'] = self.create_timer(interval_sec, _resend)
+
+    def _stop_with_retry(self, attempts: int = 8, interval_sec: float = 0.3):
+        # ! wifi 단절 순간 정지 명령(0,0)도 TTS와 같은 이유로 통째로 유실될 수 있다.
+        # 이건 안전 문제라서(유실되면 로봇이 직전 직진/회전 명령을 계속 실행) 짧은 간격으로
+        # 여러 번 반복 발행해서 네트워크가 흔들리는 짧은 창을 뚫고 최소 한 번은 도달하게 한다.
+        self.publish_cmd(0.0, 0.0)
+        remaining = attempts - 1
+        if remaining <= 0:
+            return
+        state = {'remaining': remaining}
+
+        def _resend():
+            self.publish_cmd(0.0, 0.0)
+            state['remaining'] -= 1
+            if state['remaining'] <= 0:
+                state['timer'].cancel()
+
+        state['timer'] = self.create_timer(interval_sec, _resend)
+
     # ================= 결과 요약 =================
     def publish_final_result(self):
         for stage, result in self.stage_results.items():
@@ -1968,44 +2134,155 @@ class DrivingNode(Node):
             self.notify_tts(f'전체 코스를 완료했습니다. {", ".join(fail_stages)} 구간에서 실패했습니다.')
 
     def check_wifi_status(self) -> bool:
+
+        # try:
+        #     result = subprocess.run(
+        #         ['nmcli', 'networking', 'connectivity'],
+        #         capture_output=True,
+        #         timeout=2,
+        #         text=True
+        #     )
+        #     status = result.stdout.strip()
+        #     return status == 'full'
+        # except Exception as e:
+        #     self.get_logger().warn(f'Wifi 상태 확인 실패: {e}')
+        #     return True
+        
+        # ! nmli 대신 물리계층이랑 네트워크 계층 살펴보기로 변경
+        WIFI_INTERFACE = 'wlan0'
+        try:
+            # 물리계층 carrier 파일 확인(커널이 hw드라이버로부터 직접 받는 값)
+            with open(f'/sys/class/net/{WIFI_INTERFACE}/carrier') as f: # /sys/class/net/wlan0/carrier 안에 1인가?
+                carrier = f.read().strip()
+        except OSError:
+            # ! 인터페이스가 관리자 권한으로 down 상태(`ip link set wlan0 down`)면
+            # carrier 파일 자체가 read 시 [Errno 22] Invalid argument를 던진다(0을 주는 게 아님).
+            # 이걸 아래의 광범위 except로 삼키면 "판단 불가 -> 연결됨으로 간주"가 되어
+            # wifi가 실제로 끊겨도 영원히 감지가 안 되므로 별도로 명확히 "끊김"으로 처리한다.
+            return False
+        except Exception as e:  # 파일이 아예 없다거나 등 그 외 예상 못한 상황
+            self.get_logger().warn(f'Wifi 상태 확인 실패: {e}')
+            return True # ? 연결됨으로 간주 왜냐하면 판단 자체가 실패했으니 끊긴 걸로 오인해서 로봇이 괜히 복귀하지 않게 하기 위함
+
+        if carrier != '1':
+            return False
+
+        try:
+            # 네트워크 계층 ip addr 파싱(AP로부터 DHCP가 실제 IP주소를 할당 받았는가)
+            result = subprocess.run(
+                ['ip', '-4', 'addr', 'show', WIFI_INTERFACE], # ip -4 addr show wlan0을 실행하고 result.stdout에 담음
+                capture_output=True, timeout=2, text=True
+            )
+            if 'inet ' not in result.stdout: # 'inet ' 없으면 IP 자체가 없는 것 -> 끊김
+                return False
+        except Exception as e:  # ip 명령 자체가 없다거나 등
+            self.get_logger().warn(f'Wifi 상태 확인 실패: {e}')
+            return True # ? 연결됨으로 간주 왜냐하면 판단 자체가 실패했으니 끊긴 걸로 오인해서 로봇이 괜히 복귀하지 않게 하기 위함
+
+        # ! carrier와 IP가 둘 다 멀쩡해도, 공유기가 이 기기의 MAC만 차단하는
+        # "소프트 단절"에서는 트래픽이 실제로는 하나도 안 나간다. 이런 경우까지
+        # 잡으려면 게이트웨이로 실제 ping이 가는지까지 확인해야 한다.
+        return self._check_gateway_reachable()
+
+    def _get_default_gateway(self) -> Optional[str]:
         try:
             result = subprocess.run(
-                ['nmcli', 'networking', 'connectivity'],
-                capture_output=True,
-                timeout=2,
-                text=True
+                ['ip', 'route', 'show', 'default'],
+                capture_output=True, timeout=2, text=True
             )
-            status = result.stdout.strip()
-            return status == 'full'
+            # 'default via 192.168.0.1 dev wlan0 ...' 형태에서 IP만 추출
+            parts = result.stdout.split()
+            if 'via' in parts:
+                return parts[parts.index('via') + 1]
         except Exception as e:
-            self.get_logger().warn(f'Wifi 상태 확인 실패: {e}')
+            self.get_logger().warn(f'기본 게이트웨이 확인 실패: {e}')
+        return None
+
+    def _check_gateway_reachable(self) -> bool:
+        gateway_ip = self._get_default_gateway()
+        if gateway_ip is None:
+            # ! 게이트웨이 자체를 못 찾으면 판단 불가 - 기존과 동일하게 보수적으로 "연결됨" 간주
             return True
+        try:
+            result = subprocess.run(
+                ['ping', '-c', '1', '-W', '1', gateway_ip],
+                capture_output=True, timeout=2
+            )
+            return result.returncode == 0
+        except Exception as e:
+            self.get_logger().warn(f'게이트웨이 도달성 확인 실패: {e}')
+            return True # ? 판단 자체가 실패했으니 기존과 동일하게 보수적으로 "연결됨" 간주
 
     def wifi_polling_loop(self):
         current_status = self.check_wifi_status()
 
+        # with self.wifi_check_lock:
+        #     if not current_status and self.wifi_connected:
+        #         self.wifi_connected = False
+        #         self.get_logger().error('Wifi 연결 끊김!')
+        #         self.on_wifi_disconnected()
+        #     elif current_status and not self.wifi_connected:
+        #         self.wifi_connected = True
+        #         self.get_logger().info('Wifi 다시 연결됨')
+        #         self.wifi_disconnection_handled = False
+
+        # ! 5초마다 폴링하는데 그 순간 신호가 애매해서 full↔limited를 반복하는 상황 방지 - 연속 2번(10초) 실패해야 진짜 끊김
         with self.wifi_check_lock:
-            if not current_status and self.wifi_connected:
-                self.wifi_connected = False
-                self.get_logger().error('Wifi 연결 끊김!')
-                self.on_wifi_disconnected()
-            elif current_status and not self.wifi_connected:
-                self.wifi_connected = True
-                self.get_logger().info('Wifi 다시 연결됨')
-                self.wifi_disconnection_handled = False
+            if current_status:
+                self.wifi_fail_count = 0
+                if not self.wifi_connected:
+                    self.wifi_connected = True
+                    self.get_logger().info('Wifi 다시 연결됨')
+                    self.wifi_disconnection_handled = False
+                    # ! 단절이 오래 지속되면 CycloneDDS가 로컬 통신까지 wlan0 IP로
+                    # 하는 탓에 wp1 복귀 nav goal 자체가 유실될 수 있다. 재연결 시점에
+                    # 아직 도착 확인이 안 됐으면 목표를 다시 보내서 영구 정지를 막는다.
+                    if self.mode == DrivingMode.WIFI_RETURN_HOME and not self.wifi_return_arrived:
+                        self.get_logger().warn('[Wifi 재연결] 복귀 목표 미완료 - wp1 재전송')
+                        self.send_waypoint(self.waypoints[self.first_wp_index])
+            else:
+                self.wifi_fail_count += 1
+                if self.wifi_fail_count >= self.WIFI_FAIL_THRESHOLD and self.wifi_connected:
+                    self.wifi_connected = False
+                    self.get_logger().error('Wifi 연결 끊김!')
+                    self.on_wifi_disconnected()
 
     def on_wifi_disconnected(self):
         if self.wifi_disconnection_handled:
             return
 
         self.wifi_disconnection_handled = True
+        self.wifi_return_arrived = False
         self.get_logger().error('[Wifi 단절] 처음 위치로 돌아갑니다')
 
-        self.publish_cmd(0.0, 0.0)
-        self.notify_tts('Wifi가 연결되지 않았습니다. 처음 위치로 돌아갑니다.')
+        # ! 진행중인 구간의 cmd_vel을 막아야함
+        self.mode = DrivingMode.WIFI_RETURN_HOME
+        self.wp_index = self.first_wp_index
+        self.set_goal_tolerance(0.05, 0.1)   # wp1에 정확히 도착하도록 일시적으로 타이트하게
+        self.set_progress_checker_radius(0.02, time_allowance=25.0)  # 짧은 복귀 거리 + CPU 지연 여유
 
-        home_wp = self.waypoints[self.home_wp_index]
-        self.send_waypoint(home_wp)
+        if self.crank_timer is not None:
+            self.crank_timer.cancel()
+            self.crank_timer = None
+        if self.s_course_timer is not None:
+            self.s_course_timer.cancel()
+            self.s_course_timer = None
+        if self.parking_timer is not None:
+            self.parking_timer.cancel()
+            self.parking_timer = None
+        if self.accel_timer is not None:
+            self.accel_timer.cancel()
+            self.accel_timer = None
+        if self.obstacle_blink_timer is not None:         
+            self.obstacle_blink_timer.cancel()
+            self.obstacle_blink_timer = None
+        self.is_handling_obstacle = False   
+
+        self.pause_nav()  # 혹시 진행 중이던 이전 nav 목표가 있으면 취소
+        self._stop_with_retry()
+        self._notify_tts_with_retry('와이파이가 연결되지 않았습니다. 처음 위치로 돌아갑니다.')
+
+        self.send_waypoint(self.waypoints[self.first_wp_index])
 
     def destroy_node(self):
         for _ in range(5):
