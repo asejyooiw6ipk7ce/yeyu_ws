@@ -49,7 +49,7 @@ class AudioOutputNode(Node):
 
         self.get_logger().info('Audio output node started')
         self.get_logger().info(f'Subscribe topic:{self.topic_name}')
-        self.get_logger().info('TTS engine: gTTS')
+        self.get_logger().info('TTS engine: gTTS(온라인) + espeak-ng(오프라인 대체)')
         self.get_logger().info('Audio player: mpg123')
 
 		# 주문 받기 ; 다른 노드에서 명령 메세지(AudioCommand)를 보내면 실행되도록
@@ -112,6 +112,7 @@ class AudioOutputNode(Node):
 
         mp3_path = None
 
+        gtts_ok = False
         try:
             with tempfile.NamedTemporaryFile(
                 delete=False,
@@ -128,9 +129,13 @@ class AudioOutputNode(Node):
 
             tts.save(mp3_path)
             self.play_mp3_file(mp3_path)
+            gtts_ok = True
 
         except Exception as e:
-            self.get_logger().error(f'gTTS error: {e}')
+            # ! gTTS는 구글 서버 접속이 필요해서 인터넷이 끊긴 상황(정확히 이 TTS가
+            # 알려야 하는 "Wifi 단절" 그 상황)에서는 항상 실패한다. 아래에서 오프라인
+            # espeak-ng로 대체 재생하므로, 여기서는 실패를 조용히 기록만 한다.
+            self.get_logger().warn(f'gTTS 실패(인터넷 필요) - 오프라인 TTS로 대체: {e}')
 
         finally:
 		        # 만약 생성된 임시 파일 경로(mp3_path)가 존재하고, 실제로 그 파일이 컴퓨터에 있다면
@@ -140,6 +145,42 @@ class AudioOutputNode(Node):
                 except Exception as e:
                     self.get_logger().warn(f'Failed to remove temp mp3 file: {e}')
 
+        if not gtts_ok:
+            self.play_tts_offline(text)
+
+    # ================= 오프라인 TTS (espeak-ng, 인터넷 불필요) =================
+    def play_tts_offline(self, text: str):
+        if shutil.which('espeak-ng') is None:
+            self.get_logger().error('espeak-ng가 설치되어 있지 않아 오프라인 TTS 재생 불가 (sudo apt install espeak-ng 필요)')
+            return
+
+        if shutil.which('paplay') is None:
+            self.get_logger().error('paplay가 설치되어 있지 않아 오프라인 TTS 재생 불가 (sudo apt install pulseaudio-utils 필요)')
+            return
+
+        # espeak-ng 자체 오디오 출력은 이 로봇에서는 무음이었음(PulseAudio 기본
+        # 싱크가 아닌 엉뚱한 ALSA 카드로 나감). --stdout으로 wav를 뽑아
+        # paplay로 재생해야 실제 스피커(PulseAudio 기본 싱크)로 소리가 나온다.
+        with self.process_lock:                # 소리가 겹치거나 먹통이 되는거 방지
+            espeak_proc = subprocess.Popen(
+                ['espeak-ng', '-v', self.tts_language, '--stdout', text],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL
+            )
+            self.current_process = subprocess.Popen(
+                ['paplay'],
+                stdin=espeak_proc.stdout,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+            espeak_proc.stdout.close()
+
+        try:
+            self.current_process.wait()
+        finally:
+            espeak_proc.wait()
+            with self.process_lock:
+                self.current_process = None
 
     def play_mp3_file(self,mp3_path: str):
         if shutil.which('mpg123') is None:
@@ -175,6 +216,16 @@ class AudioOutputNode(Node):
 
         subprocess.run(             # 강제 종료 기능
             ['pkill','-f','mpg123'],     # pkill -f mpg123 : 현재 재생 중인 모든 오디오 종료
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        subprocess.run(             # 오프라인 TTS(espeak-ng | paplay) 잔여 프로세스 종료
+            ['pkill','-f','espeak-ng'],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        subprocess.run(
+            ['pkill','-f','paplay'],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL
         )
