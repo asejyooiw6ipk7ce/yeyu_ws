@@ -60,6 +60,13 @@ DEBUG_PANEL_INFO = {   # [추가] 모드 → (패널 제목, 토픽 표시용 �
 DEFAULT_DEBUG_TITLE = '디버그'
 DEFAULT_DEBUG_TOPIC = '대기 중'
 
+# [추가] driving_status.retry_count 표시 오프셋
+# msg.retry_count가 "0=첫 시도, 1=1차 재시도, 2=2차 재시도 ..." 형태라면 RETRY_COUNT_DISPLAY_OFFSET = 1
+#   → 화면에는 "1회차", "2회차", "3회차" 로 보이게 됨 (retry_count + 1)
+# 만약 msg.retry_count가 이미 "몇 번째 시도인지"를 그대로 담고 있다면 (1=1회차) 아래 값을 0으로 바꾸면 됨.
+# 실제 driving_waypoint_node.py에서 retry_count를 어느 시점에 증가시키는지 확인 후 필요하면 이 값만 조정하면 된다.
+RETRY_COUNT_DISPLAY_OFFSET = 1
+
 # ================= 팔레트 =================
 BG = '#efeee9'
 CARD_BG = '#ffffff'
@@ -378,6 +385,7 @@ class MainWindow(QMainWindow):
         self.stage_dots = {}
         self.stage_status_labels = {}
         self.stage_reason = {}
+        self.stage_attempt = {}   # [추가] 구간별 최근 retry_count 캐시 (mode → int)
 
         for stage in STAGE_ROWS:
             chip = QFrame()
@@ -405,6 +413,7 @@ class MainWindow(QMainWindow):
             self.stage_dots[stage] = dot
             self.stage_status_labels[stage] = status_label
             self.stage_reason[stage] = ''
+            self.stage_attempt[stage] = 0   # [추가]
 
         layout.addLayout(chips_row)
         return layout
@@ -430,10 +439,12 @@ class MainWindow(QMainWindow):
         header.addWidget(self.event_count_badge)
         outer.addLayout(header)
 
-        self.event_table = QTableWidget(0, 3)
-        self.event_table.setHorizontalHeaderLabels(['시간', '구간', '이유'])
+        # [변경] 컬럼 3개 → 4개 ('시도' 컬럼 추가)
+        self.event_table = QTableWidget(0, 4)
+        self.event_table.setHorizontalHeaderLabels(['시간', '구간', '시도', '이유'])
         self.event_table.verticalHeader().setVisible(False)
-        self.event_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+        self.event_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)   # [변경] 2 → 3 ('이유' 컬럼이 마지막으로 밀림)
+        self.event_table.setColumnWidth(2, 60)   # [추가] '시도' 컬럼은 좁게
         self.event_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.event_table.setShowGrid(False)
         self.event_table.setStyleSheet(f"""
@@ -580,10 +591,12 @@ class MainWindow(QMainWindow):
         result = status['result']
         reason = status['reason']
         wp_index = status['wp_index']
+        retry_count = status.get('retry_count', 0)   # [추가] 없는 경우 대비 기본값 0
 
         if mode == 'RETRY_COMPLETE':
             target_label = STAGE_LABELS.get(reason, reason)
-            self.mode_value.setText(f'{target_label} 재시험 종료')
+            attempt_no = retry_count + RETRY_COUNT_DISPLAY_OFFSET   # [추가]
+            self.mode_value.setText(f'{target_label} 재시험 종료 ({attempt_no}회차)')   # [변경]
             return
 
         if mode == 'COMPLETE':
@@ -615,7 +628,15 @@ class MainWindow(QMainWindow):
         if mode in STAGE_ROWS:
             dot = self.stage_dots[mode]
             status_label = self.stage_status_labels[mode]
-            status_label.setText(RESULT_TEXT.get(result, result or '대기중'))
+            self.stage_attempt[mode] = retry_count   # [추가] 구간별 최근 시도 횟수 캐시
+
+            base_text = RESULT_TEXT.get(result, result or '대기중')
+            attempt_no = retry_count + RETRY_COUNT_DISPLAY_OFFSET
+            if retry_count > 0:   # [추가] 최소 한 번은 재시험을 거친 경우에만 횟수 표기
+                status_label.setText(f'{base_text} ({attempt_no}회차)')   # [변경]
+            else:
+                status_label.setText(base_text)
+
             color = RESULT_COLORS.get(result, RESULT_COLORS['WAIT'])
             dot.setStyleSheet(f'color: {color.name()}; font-size: 13px;')
             status_label.setStyleSheet(f'color: {color.name()}; font-size: 12px; font-weight: 700;')
@@ -623,14 +644,14 @@ class MainWindow(QMainWindow):
             self.stage_dots[mode].parent().setToolTip(reason)
 
         if result == 'FAIL':
-            self._append_event(mode, f'{reason}')
+            self._append_event(mode, f'{reason}', retry_count)   # [변경] retry_count 전달
 
         active_target = RETRY_TARGETS.get(self.active_trajectory, (None,))[0]
         if result in ('PASS', 'FAIL') and mode == active_target:
             self.active_trajectory = 1
             self._refresh_trajectory_highlight()
 
-    def _append_event(self, mode: str, reason: str):
+    def _append_event(self, mode: str, reason: str, retry_count: int = None):   # [변경] retry_count 파라미터 추가
         event_key = (mode, reason)
         if event_key == self._last_event_key:
             return
@@ -640,7 +661,17 @@ class MainWindow(QMainWindow):
         self.event_table.insertRow(row)
         self.event_table.setItem(row, 0, QTableWidgetItem(datetime.now().strftime('%H:%M:%S')))
         self.event_table.setItem(row, 1, QTableWidgetItem(STAGE_LABELS.get(mode, mode)))
-        self.event_table.setItem(row, 2, QTableWidgetItem(reason))
+
+        # [추가] '시도' 컬럼: retry_count가 주어지면 "N회차", 없으면 '-'
+        if retry_count is not None:
+            attempt_no = retry_count + RETRY_COUNT_DISPLAY_OFFSET
+            attempt_item = QTableWidgetItem(f'{attempt_no}회차')
+        else:
+            attempt_item = QTableWidgetItem('-')
+        attempt_item.setTextAlignment(Qt.AlignCenter)
+        self.event_table.setItem(row, 2, attempt_item)
+
+        self.event_table.setItem(row, 3, QTableWidgetItem(reason))   # [변경] 컬럼 인덱스 2 → 3
 
         count = self.event_table.rowCount()
         self.event_count_badge.setText(f'{count} events')
