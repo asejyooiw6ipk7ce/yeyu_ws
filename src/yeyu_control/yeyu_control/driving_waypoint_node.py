@@ -791,8 +791,8 @@ class DrivingNode(Node):
             # controller_server의 "Control loop missed its desired rate"의 원인 중 하나였음.
             return
         # ! 이게 없으면 크랭크코스에서 버벅이며 실패함
-        # if self.vision_enable is False:
-        #     return
+        if self.vision_enable is False:
+            return
         if not msg.data:
             return
         try:
