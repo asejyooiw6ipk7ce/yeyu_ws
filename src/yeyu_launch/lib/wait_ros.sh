@@ -7,7 +7,14 @@
 source_ros_env() {
     set +u    # ROS2 setup.bash 내부의 미정의 변수 참조를 허용하기 위해 잠시 해제
     source /opt/ros/humble/setup.bash
+    # ! ~/.bashrc는 turtlebot3_ws(coin_d4_driver 등)와 rgb_led_ws도 source하는데,
+    # 여기서는 yeyu_ws만 source하고 있었다. 평소엔 이 pm2/tmux 스택을 이미
+    # .bashrc가 먹인 로그인 셸에서 띄워서 안 드러났을 뿐, pm2 데몬이 .bashrc를
+    # 안 거친 환경(비대화형 SSH 명령, 재부팅 후 자동시작 등)에서 새로 뜨면
+    # coin_d4_driver 패키지를 못 찾아 01-bringup이 계속 크래시루프에 빠진다.
+    source "$HOME/turtlebot3_ws/install/setup.bash"
     source "$HOME/yeyu_ws/install/setup.bash"
+    source "$HOME/rgb_led_ws/install/setup.bash"
     export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
     export CYCLONE_DDS_URI
     set -u    # 다시 켜서 나머지 스크립트는 안전하게 유지
