@@ -380,7 +380,7 @@ class DrivingNode(Node):
         self.CRANK_LINE_GRACE_SEC = 0.2
         self.CRANK_ARRIVAL_TOLERANCE_M = 0.15
         self.CRANK_LINE_LOST_TIMEOUT_SEC = 30.0
-        self.CRANK_CREEP_DISTANCE_M = 0.055 # 0.07 -> 0.06 -> 0.07 -> 0.06 -> 0.055(개별노드실행 때 성공butPM2에서 안 됨) -> 0.055
+        self.CRANK_CREEP_DISTANCE_M = 0.06 # 0.07 -> 0.06 -> 0.07 -> 0.06 -> 0.055(개별노드실행 때 성공butPM2에서 안 됨) -> 0.055
 
         self.S_ROI_TOP_RATIO = 0.6        # 0.85 -> 0.6 : 하단 40%만 봄
         self.S_LINE_BLACK_THRESHOLD = 60 
