@@ -396,11 +396,11 @@ class DrivingNode(Node):
             
         # [추가] tf뿐 아니라 실제 amcl_pose 값도 최소 한 번은 들어왔는지 확인
 
-        with self.data_lock:
-            pose_ready = self.current_x is not None
-        if not pose_ready:
-            self.get_logger().warn('[AMCL] /amcl_pose 수신 대기중')
-            return
+        # with self.data_lock:
+        #     pose_ready = self.current_x is not None
+        # if not pose_ready:
+        #     self.get_logger().warn('[AMCL] /amcl_pose 수신 대기중')
+        #     return
         self._start_check_timer.cancel()
         self._pending_start_timer = self.create_timer(0.5, self._do_start)
 
