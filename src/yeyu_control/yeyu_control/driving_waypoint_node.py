@@ -11,8 +11,6 @@ from rclpy.node import Node
 from rclpy.action import ActionClient
 from rclpy.duration import Duration
 from rclpy.executors import MultiThreadedExecutor
-from rclpy.callback_groups import ReentrantCallbackGroup, MutuallyExclusiveCallbackGroup
-
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 
 from rcl_interfaces.srv import SetParameters
@@ -35,7 +33,6 @@ from yeyu_control.states.linecourse_state import LineCourseState
 from yeyu_control.states.linecourse_state import SCourseState
 from ament_index_python.packages import get_package_share_directory
 from cv_bridge import CvBridge, CvBridgeError
-import subprocess
 import cv2
 import numpy as np
 from tf2_ros import Buffer, TransformListener
@@ -109,9 +106,8 @@ class DrivingNode(Node):
         self.data_lock = threading.Lock()
         self.crank_lock = threading.Lock()
         self.s_course_lock = threading.Lock()
-        self.camera_lock = threading.Lock()          
-        self._nav_result_lock = threading.Lock()   
-        self.wifi_check_lock = threading.Lock()
+        self.camera_lock = threading.Lock()          # [수정] on_camera에서 쓰는데 초기화가 빠져 있던 것 추가
+        self._nav_result_lock = threading.Lock()      # [수정] 마찬가지로 초기화 누락 추가
 
         self.wp_index = 0
         self.green_count = 0
@@ -230,10 +226,6 @@ class DrivingNode(Node):
         self.s_line_offset = None
         self.s_line_last_seen_time = self.get_clock().now() - Duration(seconds=999.0)
         self.s_last_valid_offset = None
-        self.s_course_state = SCourseState.TRACKING
-
-        self.fast_cb_group = ReentrantCallbackGroup()
-        self.camera_cb_group = MutuallyExclusiveCallbackGroup() 
 
         # --- 구독/발행 ---
         sensor_qos = QoSProfile(
@@ -243,8 +235,8 @@ class DrivingNode(Node):
             depth=1,
         )
 
-        self.create_subscription(CompressedImage, self.image_topic, self.on_camera, sensor_qos, callback_group=self.camera_cb_group)
-        self.create_subscription(CameraInfo, self.camera_info_topic, self.camera_info_callback, sensor_qos, callback_group=self.fast_cb_group)
+        self.create_subscription(CompressedImage, self.image_topic, self.on_camera, sensor_qos)
+        self.create_subscription(CameraInfo, self.camera_info_topic, self.camera_info_callback, sensor_qos)
         self.create_subscription(PoseWithCovarianceStamped, '/amcl_pose', self.on_amcl_pose, 10)
         self.create_subscription(Odometry, '/odom', self.on_odom, 10)
         self.create_subscription(IRSensor, 'sensor_bridge/ir_state', self.on_ir_sensor, 10)
@@ -284,11 +276,6 @@ class DrivingNode(Node):
             self.DEFAULT_LOCAL_INFLATION_RADIUS, self.DEFAULT_GLOBAL_INFLATION_RADIUS)
         self.startup_timer = self.create_timer(0.5, self.on_startup)
 
-        # ========== wifi 감지 상태 ===========
-        self.wifi_connected = True              # 현재 연결 상태
-        self.home_wp_index = 0      # 처음 위치
-        self.wifi_disconnection_handled = False # 한 번만 처리하기 위한 플래그
-
         # ========== 타이머 ===========
         self.timer_period = 1.0 / max(self.control_rate_hz, 0.5)
 
@@ -298,7 +285,6 @@ class DrivingNode(Node):
         self.s_course_timer = None
         self.vision_timer = self.create_timer(self.timer_period, self.camera_processing_loop)
         self.nav_result_timer = self.create_timer(self.timer_period, self._nav_result_loop)
-        self.wifi_timer = self.create_timer(5.0, self.wifi_polling_loop)
 
     # ================= 파라미터 =================
     def _declare_parking_parameters(self):
@@ -430,7 +416,7 @@ class DrivingNode(Node):
 
         self._reset_crank_state()
         if self.crank_timer is None:
-            self.crank_timer = self.create_timer(self.timer_period, self.crank_control_loop, callback_group=self.fast_cb_group)
+            self.crank_timer = self.create_timer(self.timer_period, self.crank_control_loop)
 
     # ================= 구간 결과 보고 (공통 헬퍼) =================
     def _publish_status(self, mode: str, result: str, reason: str = ''):   # [병합: A] 판정 없이 상태만 알리는 헬퍼
@@ -489,14 +475,6 @@ class DrivingNode(Node):
             self._reset_crank_state()
         elif target == 'TRACING_S':
             self._reset_s_course_state()
-        elif target == 'ACCEL_ZONE':
-            self.accel_zone_enter_time = None
-            self.accel_zone_max_speed = 0.0
-            self.accel_sustain_start = None
-            self.accel_last_below_time = None
-
-        if target != 'TRACING_CRANK':
-            self.vision_enable = True
 
         self.get_logger().info(f'[RETRY] {target} 재시험 시작 → wp{entry["wp_index"] + 1}로 이동')
         label = STAGE_TTS_LABELS.get(target, target)
@@ -744,7 +722,6 @@ class DrivingNode(Node):
         
         if self.is_estopped:
             return
-        # ! 이게 없으면 크랭크코스에서 버벅이며 실패함
         # if self.vision_enable is False:
         #     return
         if not msg.data:
@@ -959,7 +936,7 @@ class DrivingNode(Node):
 
         gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
         mask = cv2.inRange(gray, 0, self.S_LINE_BLACK_THRESHOLD)   #그레이스케일 + 밝기값이 0~threshold 사이인 곳은 흰색만 남기겠다(이진화)
-        # #  자동노출로 인해 밝기가 달라지면 객체 인식이 안됨 -> 이미지 밝기 분포를 자동 분석해 threshold를 동적으로 결정(실패)
+        # # ! 자동노출로 인해 밝기가 달라지면 객체 인식이 안됨 -> 이미지 밝기 분포를 자동 분석해 threshold를 동적으로 결정
         # blur = cv2.GaussianBlur(gray, (5, 5), 0)
         # _, mask = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)  
 
@@ -1004,15 +981,7 @@ class DrivingNode(Node):
                 continue
             cx = x + (M['m10'] / M['m00'])
 
-            # 오른쪽 커브일 때만 K=100으로 설정(변화 없어서 취소)
-            # CX_SWITCH_MARGIN = 20  # 픽셀, 필요하면 조정
-
-            # if cx < w / 2.0 - CX_SWITCH_MARGIN:
-            #     K = 100
-            # else:
-            #     K = 60
-
-            this_offset = (cx - w / 2.0 - 70) / (w / 2.0 - 70)
+            this_offset = (cx - w / 2.0 -60) / (w / 2.0- 60)
 
             # # solidity 계산
             # hull = cv2.convexHull(c)
@@ -1044,8 +1013,7 @@ class DrivingNode(Node):
             candidates.sort(key=lambda t: t[0], reverse=True)
             best_contour = candidates[0][1]
             offset = candidates[0][2]
-            # cx_full = (offset * (w / 2.0 - K)) + (w / 2.0 - K)
-            cx_full = (offset * (w / 2.0 - 70)) + (w / 2.0 - 70)
+            cx_full = (offset * (w / 2.0 -60)) + (w / 2.0 -60)
             self.s_last_valid_offset = offset   # 성공했을 때만 "최근 유효 위치" 갱신
 
             # 디버그용: 채택된 컨투어의 밴드 영역 좌표도 구해둠
@@ -1964,48 +1932,8 @@ class DrivingNode(Node):
         if overall_pass:
             self.notify_tts('전체 코스를 완료했습니다. 모든 구간을 성공적으로 통과했습니다.')
         else:
-            fail_stages = [STAGE_TTS_LABELS.get(name,name) for name, r in self.stage_results.items() if r == StageResult.FAIL]
+            fail_stages = [name for name, r in self.stage_results.items() if r == StageResult.FAIL]
             self.notify_tts(f'전체 코스를 완료했습니다. {", ".join(fail_stages)} 구간에서 실패했습니다.')
-
-    def check_wifi_status(self) -> bool:
-        try:
-            result = subprocess.run(
-                ['nmcli', 'networking', 'connectivity'],
-                capture_output=True,
-                timeout=2,
-                text=True
-            )
-            status = result.stdout.strip()
-            return status == 'full'
-        except Exception as e:
-            self.get_logger().warn(f'Wifi 상태 확인 실패: {e}')
-            return True
-
-    def wifi_polling_loop(self):
-        current_status = self.check_wifi_status()
-
-        with self.wifi_check_lock:
-            if not current_status and self.wifi_connected:
-                self.wifi_connected = False
-                self.get_logger().error('Wifi 연결 끊김!')
-                self.on_wifi_disconnected()
-            elif current_status and not self.wifi_connected:
-                self.wifi_connected = True
-                self.get_logger().info('Wifi 다시 연결됨')
-                self.wifi_disconnection_handled = False
-
-    def on_wifi_disconnected(self):
-        if self.wifi_disconnection_handled:
-            return
-
-        self.wifi_disconnection_handled = True
-        self.get_logger().error('[Wifi 단절] 처음 위치로 돌아갑니다')
-
-        self.publish_cmd(0.0, 0.0)
-        self.notify_tts('Wifi가 연결되지 않았습니다. 처음 위치로 돌아갑니다.')
-
-        home_wp = self.waypoints[self.home_wp_index]
-        self.send_waypoint(home_wp)
 
     def destroy_node(self):
         for _ in range(5):
