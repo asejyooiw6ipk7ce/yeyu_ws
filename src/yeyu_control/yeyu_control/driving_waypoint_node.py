@@ -23,7 +23,7 @@ from geometry_msgs.msg import PoseWithCovarianceStamped
 from action_msgs.msg import GoalStatus
 from sensor_msgs.msg import CompressedImage, CameraInfo
 from geometry_msgs.msg import Twist
-from std_msgs.msg import ColorRGBA, Float32, Bool   # [병합] Float32, Bool은 A(장애물/비상LED)에서
+from std_msgs.msg import ColorRGBA, Float32, Bool  
 from std_srvs.srv import Trigger
 from yeyu_msgs.msg import DrivingStatus, AudioCommand
 from yeyu_msgs.msg import IRSensor
