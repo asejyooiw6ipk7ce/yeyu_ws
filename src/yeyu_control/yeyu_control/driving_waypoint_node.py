@@ -416,7 +416,7 @@ class DrivingNode(Node):
 
         self._reset_crank_state()
         if self.crank_timer is None:
-            self.crank_timer = self.create_timer(0.067, self.crank_control_loop)
+            self.crank_timer = self.create_timer(0.2, self.crank_control_loop)
 
     # ================= 구간 결과 보고 (공통 헬퍼) =================
     def _publish_status(self, mode: str, result: str, reason: str = ''):   # [병합: A] 판정 없이 상태만 알리는 헬퍼
@@ -1661,19 +1661,6 @@ class DrivingNode(Node):
         if elapsed >= self.crank_creep_target_sec:
             self._start_crank_turn(self.crank_turn_pending_delta)
 
-        # x, y = self.odom_x, self.odom_y
-
-        # if x is None or self.crank_creep_start_x is None:
-        #     # 위치 모르면 시간으로 폴백
-        #     self.get_logger().info(f'x is None or self.crank_creep_start_x is None')
-        #     elapsed = self._elapsed(self.crank_creep_start_time)
-        #     if elapsed >= (self.CRANK_CREEP_DISTANCE_M / self.CRANK_LINEAR_SPEED):
-        #         self._start_crank_turn(self.crank_turn_pending_delta)
-        #     return
-
-        # dist = math.hypot(x - self.crank_creep_start_x, y - self.crank_creep_start_y)
-        # if dist >= self.CRANK_CREEP_DISTANCE_M:
-        #     self._start_crank_turn(self.crank_turn_pending_delta)
 
     def _start_crank_turn(self, target_delta_deg: float):
         if not self.odom_received:
