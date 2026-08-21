@@ -247,8 +247,12 @@ class DrivingNode(Node):
         self.create_subscription(CompressedImage, self.image_topic, self.on_camera, sensor_qos, callback_group=self.camera_cb_group)
         self.create_subscription(CameraInfo, self.camera_info_topic, self.camera_info_callback, sensor_qos, callback_group=self.fast_cb_group)
         self.create_subscription(PoseWithCovarianceStamped, '/amcl_pose', self.on_amcl_pose, 10)
-        self.create_subscription(Odometry, '/odom', self.on_odom, 10)
-        self.create_subscription(IRSensor, 'sensor_bridge/ir_state', self.on_ir_sensor, 10)
+        # ! on_odom/on_ir_sensor를 기본(default) 콜백 그룹에 두면 wifi_timer(5초 주기,
+        # subprocess로 ip/ping을 blocking 호출)와 같은 그룹에 묶여 크랭크 진행 중 IR/odom이
+        # 밀리면서 라인 이탈 복구가 실패하는 원인이 되었다(크랭크 코스 회귀 버그). 별도
+        # 그룹으로 분리해서 wifi 폴링이 블로킹되어도 센서 콜백이 밀리지 않도록 한다.
+        self.create_subscription(Odometry, '/odom', self.on_odom, 10, callback_group=self.fast_cb_group)
+        self.create_subscription(IRSensor, 'sensor_bridge/ir_state', self.on_ir_sensor, 10, callback_group=self.fast_cb_group)
         self.create_subscription(   # [병합: A] 초음파 장애물 거리
             Float32, 'sensor_bridge/obstacle_distance_cm', self.on_obstacle_distance, 10)
 
@@ -721,7 +725,9 @@ class DrivingNode(Node):
                     self._report_stage('TRACING_CRANK', StageResult.IN_PROGRESS, '')
                     self._reset_crank_state()
                     if self.crank_timer is None:
-                        self.crank_timer = self.create_timer(self.timer_period, self.crank_control_loop)
+                        # ! :445의 최초 시작 경로와 동일하게 fast_cb_group을 써야 wifi_timer 등
+                        # 기본 그룹의 블로킹 콜백에 크랭크 제어 루프가 밀리지 않는다.
+                        self.crank_timer = self.create_timer(self.timer_period, self.crank_control_loop, callback_group=self.fast_cb_group)
                 elif self.mode == DrivingMode.TRACING_S:
                     self.set_led('TRACING_S')
                     self.notify_tts('S자 코스를 시작합니다')
