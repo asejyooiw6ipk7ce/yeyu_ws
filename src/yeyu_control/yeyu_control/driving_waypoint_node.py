@@ -416,7 +416,7 @@ class DrivingNode(Node):
 
         self._reset_crank_state()
         if self.crank_timer is None:
-            self.crank_timer = self.create_timer(self.timer_period, self.crank_control_loop)
+            self.crank_timer = self.create_timer(0.067, self.crank_control_loop)
 
     # ================= 구간 결과 보고 (공통 헬퍼) =================
     def _publish_status(self, mode: str, result: str, reason: str = ''):   # [병합: A] 판정 없이 상태만 알리는 헬퍼
