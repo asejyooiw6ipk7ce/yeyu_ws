@@ -110,7 +110,6 @@ class DrivingNode(Node):
         self.s_course_lock = threading.Lock()
         self.camera_lock = threading.Lock()
         self._nav_result_lock = threading.Lock()
-        self.wifi_check_lock = threading.Lock()
 
         self.wp_index = 0
         self.green_count = 0
@@ -285,16 +284,6 @@ class DrivingNode(Node):
         self.startup_timer = self.create_timer(0.5, self.on_startup)
 
 
-        self.wifi_connected = True
-        self.first_wp_index = 0
-        self.wifi_disconnection_handled = False
-        self.wifi_fail_count = 0
-        self.WIFI_FAIL_THRESHOLD = 2
-
-
-        self.wifi_return_arrived = True
-
-
         self.timer_period = 1.0 / max(self.control_rate_hz, 0.5)
 
         self.crank_timer = None
@@ -303,7 +292,6 @@ class DrivingNode(Node):
         self.s_course_timer = None
         self.vision_timer = self.create_timer(self.timer_period, self.camera_processing_loop)
         self.nav_result_timer = self.create_timer(self.timer_period, self._nav_result_loop)
-        self.wifi_timer = self.create_timer(5.0, self.wifi_polling_loop)
 
 
     def _declare_parking_parameters(self):
@@ -637,15 +625,6 @@ class DrivingNode(Node):
         if status == GoalStatus.STATUS_SUCCEEDED:
             self.nav_fail_count = 0
 
-            if self.mode == DrivingMode.WIFI_RETURN_HOME:
-                self.wifi_return_arrived = True
-                self.get_logger().info('[Wifi 단절] 처음 위치로 복귀 완료')
-                self._publish_cmd(Twist())
-                self._publish_status('WIFI_RETURN_HOME', 'DONE', 'wifi 단절로 처음 위치로 복귀')
-                self.set_goal_tolerance(0.25, 0.25)
-                self.set_progress_checker_radius(0.5)
-                return
-
             if self.wp_index == 4:
                 self.wp_index = 5
                 self.mode = DrivingMode.NAV_TO_SIGNAL
@@ -877,7 +856,7 @@ class DrivingNode(Node):
     def on_obstacle_distance(self, msg: Float32):
         if self.is_estopped or self.is_handling_obstacle:
             return
-        if self.mode not in (DrivingMode.NAV_TO_END, DrivingMode.WIFI_RETURN_HOME):
+        if self.mode != DrivingMode.NAV_TO_END:
             return
         if msg.data <= self.OBSTACLE_STOP_DISTANCE_CM:
             self.get_logger().warn(f'[OBSTACLE] 장애물 감지: {msg.data:.1f} cm')
@@ -1557,71 +1536,6 @@ class DrivingNode(Node):
             self.get_logger().warn(f'[set_speed] 응답 처리 실패: {e}')
 
 
-    def set_goal_tolerance(self, xy: float, yaw: float):
-
-
-        if not self.param_client.wait_for_service(timeout_sec=1.0):
-            self.get_logger().warn('controller_server 파라미터 서비스 응답 없음')
-            return
-        xy_param = Parameter()
-        xy_param.name = 'general_goal_checker.xy_goal_tolerance'
-        xy_param.value = ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=xy)
-        yaw_param = Parameter()
-        yaw_param.name = 'general_goal_checker.yaw_goal_tolerance'
-        yaw_param.value = ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=yaw)
-        follow_path_xy_param = Parameter()
-        follow_path_xy_param.name = 'FollowPath.xy_goal_tolerance'
-        follow_path_xy_param.value = ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=xy)
-        req = SetParameters.Request()
-        req.parameters = [xy_param, yaw_param, follow_path_xy_param]
-        future = self.param_client.call_async(req)
-        future.add_done_callback(
-            lambda f: self._on_set_goal_tolerance_response(f, xy, yaw))
-
-    def _on_set_goal_tolerance_response(self, future, xy: float, yaw: float):
-        try:
-            results = future.result().results
-        except Exception as e:
-            self.get_logger().error(f'[goal_tolerance] xy={xy}, yaw={yaw} 적용 실패(서비스 예외): {e}')
-            return
-        if all(r.successful for r in results):
-            self.get_logger().info(f'[goal_tolerance] xy={xy}, yaw={yaw} (FollowPath 포함) 적용 성공')
-        else:
-            reasons = [r.reason for r in results if not r.successful]
-            self.get_logger().error(f'[goal_tolerance] xy={xy}, yaw={yaw} 적용 일부 실패: {reasons}')
-
-
-    def set_progress_checker_radius(self, radius: float, time_allowance: float = 10.0):
-
-
-        if not self.param_client.wait_for_service(timeout_sec=1.0):
-            self.get_logger().warn('controller_server 파라미터 서비스 응답 없음')
-            return
-        radius_param = Parameter()
-        radius_param.name = 'progress_checker.required_movement_radius'
-        radius_param.value = ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=radius)
-        time_param = Parameter()
-        time_param.name = 'progress_checker.movement_time_allowance'
-        time_param.value = ParameterValue(type=ParameterType.PARAMETER_DOUBLE, double_value=time_allowance)
-        req = SetParameters.Request()
-        req.parameters = [radius_param, time_param]
-        future = self.param_client.call_async(req)
-        future.add_done_callback(
-            lambda f: self._on_set_progress_checker_response(f, radius, time_allowance))
-
-    def _on_set_progress_checker_response(self, future, radius: float, time_allowance: float):
-        try:
-            results = future.result().results
-        except Exception as e:
-            self.get_logger().error(f'[progress_checker] radius={radius}, time_allowance={time_allowance} 적용 실패(서비스 예외): {e}')
-            return
-        if all(r.successful for r in results):
-            self.get_logger().info(f'[progress_checker] radius={radius}, time_allowance={time_allowance} 적용 성공')
-        else:
-            reasons = [r.reason for r in results if not r.successful]
-            self.get_logger().error(f'[progress_checker] radius={radius}, time_allowance={time_allowance} 적용 일부 실패: {reasons}')
-
-
     def set_inflation_radius(self, radius: float, clients=None):
         if clients is None:
             clients = [self.local_costmap_param_client, self.global_costmap_param_client]
@@ -2001,40 +1915,6 @@ class DrivingNode(Node):
         self.audio_pub.publish(msg)
         self.get_logger().info(f'[TTS] {text}')
 
-    def _notify_tts_with_retry(self, text: str, attempts: int = 3, interval_sec: float = 1.5):
-
-
-        self.notify_tts(text)
-        remaining = attempts - 1
-        if remaining <= 0:
-            return
-        state = {'remaining': remaining}
-
-        def _resend():
-            self.notify_tts(text)
-            state['remaining'] -= 1
-            if state['remaining'] <= 0:
-                state['timer'].cancel()
-
-        state['timer'] = self.create_timer(interval_sec, _resend)
-
-    def _stop_with_retry(self, attempts: int = 8, interval_sec: float = 0.3):
-
-
-        self.publish_cmd(0.0, 0.0)
-        remaining = attempts - 1
-        if remaining <= 0:
-            return
-        state = {'remaining': remaining}
-
-        def _resend():
-            self.publish_cmd(0.0, 0.0)
-            state['remaining'] -= 1
-            if state['remaining'] <= 0:
-                state['timer'].cancel()
-
-        state['timer'] = self.create_timer(interval_sec, _resend)
-
 
     def publish_final_result(self):
         for stage, result in self.stage_results.items():
@@ -2058,129 +1938,6 @@ class DrivingNode(Node):
         else:
             fail_stages = [STAGE_TTS_LABELS.get(name,name) for name, r in self.stage_results.items() if r == StageResult.FAIL]
             self.notify_tts(f'전체 코스를 완료했습니다. {", ".join(fail_stages)} 구간에서 실패했습니다.')
-
-    def check_wifi_status(self) -> bool:
-
-
-        WIFI_INTERFACE = 'wlan0'
-        try:
-
-            with open(f'/sys/class/net/{WIFI_INTERFACE}/carrier') as f:
-                carrier = f.read().strip()
-        except OSError:
-
-
-            return False
-        except Exception as e:
-            self.get_logger().warn(f'Wifi 상태 확인 실패: {e}')
-            return True
-
-        if carrier != '1':
-            return False
-
-        try:
-
-            result = subprocess.run(
-                ['ip', '-4', 'addr', 'show', WIFI_INTERFACE],
-                capture_output=True, timeout=2, text=True
-            )
-            if 'inet ' not in result.stdout:
-                return False
-        except Exception as e:
-            self.get_logger().warn(f'Wifi 상태 확인 실패: {e}')
-            return True
-
-
-        return self._check_gateway_reachable()
-
-    def _get_default_gateway(self) -> Optional[str]:
-        try:
-            result = subprocess.run(
-                ['ip', 'route', 'show', 'default'],
-                capture_output=True, timeout=2, text=True
-            )
-
-            parts = result.stdout.split()
-            if 'via' in parts:
-                return parts[parts.index('via') + 1]
-        except Exception as e:
-            self.get_logger().warn(f'기본 게이트웨이 확인 실패: {e}')
-        return None
-
-    def _check_gateway_reachable(self) -> bool:
-        gateway_ip = self._get_default_gateway()
-        if gateway_ip is None:
-
-            return True
-        try:
-            result = subprocess.run(
-                ['ping', '-c', '1', '-W', '1', gateway_ip],
-                capture_output=True, timeout=2
-            )
-            return result.returncode == 0
-        except Exception as e:
-            self.get_logger().warn(f'게이트웨이 도달성 확인 실패: {e}')
-            return True
-
-    def wifi_polling_loop(self):
-        current_status = self.check_wifi_status()
-
-
-        with self.wifi_check_lock:
-            if current_status:
-                self.wifi_fail_count = 0
-                if not self.wifi_connected:
-                    self.wifi_connected = True
-                    self.get_logger().info('Wifi 다시 연결됨')
-                    self.wifi_disconnection_handled = False
-
-
-                    if self.mode == DrivingMode.WIFI_RETURN_HOME and not self.wifi_return_arrived:
-                        self.get_logger().warn('[Wifi 재연결] 복귀 목표 미완료 - wp1 재전송')
-                        self.send_waypoint(self.waypoints[self.first_wp_index])
-            else:
-                self.wifi_fail_count += 1
-                if self.wifi_fail_count >= self.WIFI_FAIL_THRESHOLD and self.wifi_connected:
-                    self.wifi_connected = False
-                    self.get_logger().error('Wifi 연결 끊김!')
-                    self.on_wifi_disconnected()
-
-    def on_wifi_disconnected(self):
-        if self.wifi_disconnection_handled:
-            return
-
-        self.wifi_disconnection_handled = True
-        self.wifi_return_arrived = False
-        self.get_logger().error('[Wifi 단절] 처음 위치로 돌아갑니다')
-
-
-        self.mode = DrivingMode.WIFI_RETURN_HOME
-        self.wp_index = self.first_wp_index
-        self.set_goal_tolerance(0.05, 0.1)
-        self.set_progress_checker_radius(0.02, time_allowance=25.0)
-
-        if self.crank_timer is not None:
-            self.crank_timer.cancel()
-            self.crank_timer = None
-        if self.s_course_timer is not None:
-            self.s_course_timer.cancel()
-            self.s_course_timer = None
-        if self.parking_timer is not None:
-            self.parking_timer.cancel()
-            self.parking_timer = None
-        if self.accel_timer is not None:
-            self.accel_timer.cancel()
-            self.accel_timer = None
-        if self.obstacle_blink_timer is not None:
-            self.obstacle_blink_timer.cancel()
-            self.obstacle_blink_timer = None
-        self.is_handling_obstacle = False
-
-        self.pause_nav()
-        self._stop_with_retry()
-        self._notify_tts_with_retry('와이파이가 연결되지 않았습니다. 처음 위치로 돌아갑니다.')
-
-        self.send_waypoint(self.waypoints[self.first_wp_index])
 
     def destroy_node(self):
         for _ in range(5):
