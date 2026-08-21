@@ -358,7 +358,7 @@ class DrivingNode(Node):
         self.CRANK_LINE_GRACE_SEC = 0.2
         self.CRANK_ARRIVAL_TOLERANCE_M = 0.15
         self.CRANK_LINE_LOST_TIMEOUT_SEC = 30.0
-        self.CRANK_CREEP_DISTANCE_M = 0.045 # 0.07 -> 0.06 -> 0.07 -> 0.06 -> 0.055(개별노드실행 때 성공butPM2에서 안 됨) -> 0.45
+        self.CRANK_CREEP_DISTANCE_M = 0.055 # 0.07 -> 0.06 -> 0.07 -> 0.06 -> 0.055(개별노드실행 때 성공butPM2에서 안 됨) -> 0.45
 
         self.S_ROI_TOP_RATIO = 0.6        # 0.85 -> 0.6 : 하단 40%만 봄
         self.S_LINE_BLACK_THRESHOLD = 60 
@@ -1031,11 +1031,11 @@ class DrivingNode(Node):
         return offset
 
     def on_odom(self, msg):
-        now = self.get_clock().now()
-        msg_time = rclpy.time.Time.from_msg(msg.header.stamp)
-        delay = (now - msg_time).nanoseconds / 1e9
-        if delay > 0.1:
-            self.get_logger().warn(f'odom 지연: {delay:.3f}s')
+        # now = self.get_clock().now()
+        # msg_time = rclpy.time.Time.from_msg(msg.header.stamp)
+        # delay = (now - msg_time).nanoseconds / 1e9
+        # if delay > 0.1:
+        #     self.get_logger().warn(f'odom 지연: {delay:.3f}s')
 
         q = msg.pose.pose.orientation
         self.current_yaw = math.atan2(
