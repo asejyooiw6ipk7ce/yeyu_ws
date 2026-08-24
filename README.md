@@ -1,29 +1,11 @@
-# yeyu_main_project_01
-This repository is used for ROS 2 classes and serves as a workspace for the yeyu team.
-
-1. 프로젝트 소개
-2. 서비스 시나리오
-3. 하드웨어 구성
-4. 소프트웨어 구성
-5. 패키지 구조
-6. 설치 방법
-7. 빌드 방법
-8. 실행 방법
-9. 자동 실행 방법
-10. 토픽, 서비스, 액션 목록
-11. 지도와 경유점 설명
-12. 시험 결과
-13. 알려진 문제
-14. 팀원 역할
+# yeyu_ws — 자율주행 사전검증 로봇
 
 ## 1. 프로젝트 소개
-TurtleBot3 Burger 기반으로 실내 시험 코스에서 웨이포인트 자율주행, 크랭크·S자 코스
-라인트레이싱, 신호등·가속표지판 인식, ArUco 마커 기반 주차를 순서대로 수행하는
-자율주행 사전검증 로봇입니다. 자율주행 플랫폼의 이동·정지·정밀 제어 성능과
-카메라 비전 인식 알고리즘의 판단 정확도를 사전에 검증하는 것이 목적이며,
-원격 대시보드로 실시간 모니터링·구간별 재시험·비상정지를 지원합니다.
+
+TurtleBot3 Burger 기반으로 실내 시험 코스에서 웨이포인트 자율주행, 크랭크·S자 코스 라인트레이싱, 신호등·가속표지판 인식, ArUco 마커 기반 주차를 순서대로 수행하는 자율주행 사전검증 로봇입니다. 자율주행 플랫폼의 이동·정지·정밀 제어 성능과 카메라 비전 인식 알고리즘의 판단 정확도를 사전에 검증하는 것이 목적이며, 원격 대시보드로 실시간 모니터링·구간별 재시험·비상정지를 지원합니다.
 
 ## 2. 서비스 시나리오
+
 1. 전원 인가 후 초기 위치(wp1)에서 대기, 시작 조건 충족 시 자동 출발
 2. 웨이포인트를 Nav2로 순차 이동하며 각 임무 구간 진입
 3. 크랭크 코스 → S자 코스 → 신호대기 → 가속구간 → ArUco 주차 순서로 수행
@@ -34,6 +16,7 @@ TurtleBot3 Burger 기반으로 실내 시험 코스에서 웨이포인트 자율
 8. 전체 코스 종료 시 구간별 결과를 집계해 음성(TTS)으로 안내
 
 ## 3. 하드웨어 구성
+
 | 구성요소 | 비고 |
 |---|---|
 | TurtleBot3 Burger (차동구동) | 이동 플랫폼 |
@@ -47,18 +30,18 @@ TurtleBot3 Burger 기반으로 실내 시험 코스에서 웨이포인트 자율
 | 온보드 컴퓨터 (Ubuntu/ROS 2) | 전체 노드 실행 |
 
 ## 4. 소프트웨어 구성
+
 - **ROS 2 Humble**
 - **Cartographer** — SLAM 기반 지도 작성
 - **AMCL / Nav2** — 위치추정, 웨이포인트 경로계획·추종
-- **driving_waypoint_node** — 임무 전체를 관리하는 단일 통합 노드
-  (웨이포인트 전환, 구간별 상태머신, 판정, 재시험, 비상정지, LED/TTS)
+- **driving_waypoint_node** — 임무 전체를 관리하는 단일 통합 노드 (웨이포인트 전환, 구간별 상태머신, 판정, 재시험, 비상정지, LED/TTS)
 - **arduino_bridge_node_serial** — IR·초음파 센서 수신, LED 명령 송신 (직렬 패킷 통신)
 - **대시보드 (PyQt, yeyu_gui)** — 원격 모니터링, 재시험/비상정지 명령
 
-> ⚠️ 별도의 상태관리 노드/안전관리 노드로 분리되어 있지 않고, `driving_waypoint_node`
-> 하나가 MultiThreadedExecutor(4 threads)로 동시성을 관리합니다.
+> ⚠️ 별도의 상태관리 노드/안전관리 노드로 분리되어 있지 않고, `driving_waypoint_node` 하나가 MultiThreadedExecutor(4 threads)로 동시성을 관리합니다.
 
 ## 5. 패키지 구조
+
 ```
 yeyu_ws/
 └── src/
@@ -77,16 +60,117 @@ yeyu_ws/
 ```
 
 ## 6. 설치 방법
-> ⚠️ 레포에 별도 install 문서가 없어 일반적인 ROS 2 워크스페이스 기준으로 작성했습니다. 실제 환경과 다르면 알려주세요.
+
+### 6-1. 시스템 업데이트 및 ROS 2 Humble
+
 ```bash
-# ROS 2 Humble, Nav2, Cartographer가 설치되어 있어야 합니다
+sudo apt update && sudo apt upgrade -y
+
+# ROS 2 Humble이 이미 설치되어 있지 않다면
+sudo apt install -y ros-humble-desktop ros-humble-ros-base
+sudo apt install -y python3-colcon-common-extensions python3-rosdep
+sudo rosdep init   # 이미 초기화되어 있으면 생략
+rosdep update
+```
+
+### 6-2. TurtleBot3 / Nav2 / Cartographer(SLAM)
+
+```bash
+sudo apt install -y \
+  ros-humble-turtlebot3 \
+  ros-humble-turtlebot3-msgs \
+  ros-humble-dynamixel-sdk \
+  ros-humble-navigation2 \
+  ros-humble-nav2-bringup \
+  ros-humble-nav2-amcl \
+  ros-humble-cartographer \
+  ros-humble-cartographer-ros \
+  ros-humble-cv-bridge \
+  ros-humble-vision-opencv \
+  ros-humble-image-transport \
+  ros-humble-compressed-image-transport \
+  ros-humble-tf2-ros \
+  ros-humble-rclpy \
+  ros-humble-rclcpp
+
+echo 'export TURTLEBOT3_MODEL=burger' >> ~/.bashrc
+source ~/.bashrc
+```
+
+### 6-3. LiDAR 드라이버
+
+TurtleBot3 Burger 기본 LDS 센서를 사용하는 경우 `ros-humble-turtlebot3` 설치 시 함께 포함되지만, 별도 2D LiDAR(RPLiDAR 등)를 쓰는 경우 아래처럼 추가 설치가 필요합니다.
+
+```bash
+sudo apt install -y ros-humble-rplidar-ros   # RPLiDAR 계열을 사용하는 경우
+```
+
+### 6-4. 컴퓨터 비전(OpenCV + ArUco)
+
+```bash
+pip3 install --upgrade pip
+pip3 install \
+  opencv-contrib-python \
+  numpy \
+  pyyaml
+```
+
+> `cv2.aruco` 모듈은 `opencv-contrib-python`에 포함되어 있습니다. `opencv-python`만 설치하면 ArUco 인식(직각주차)이 동작하지 않으니 주의하세요.
+
+### 6-5. 대시보드(PyQt5)
+
+```bash
+sudo apt install -y python3-pyqt5 libxcb-xinerama0
+pip3 install pyqt5
+```
+
+### 6-6. USB 스피커 / TTS 음성 안내
+
+```bash
+# 시스템 오디오 스택 (USB 스피커 인식/재생)
+sudo apt install -y alsa-utils pulseaudio
+
+# TTS 엔진 (audio_output_node에서 사용하는 엔진에 맞춰 택1)
+sudo apt install -y espeak-ng      # 오프라인 TTS
+# 또는
+pip3 install gTTS pyttsx3          # 온라인/파이썬 TTS 라이브러리 사용 시
+```
+
+### 6-7. OpenCR / Dynamixel 펌웨어 개발 환경 (모터 보드 재설정이 필요한 경우)
+
+```bash
+sudo apt install -y arduino
+# Arduino IDE 보드 매니저 URL에 ROBOTIS OpenCR 보드 정의 추가 후,
+# 라이브러리 매니저에서 Dynamixel SDK 설치
+```
+
+### 6-8. 자동 실행(PM2)
+
+```bash
+sudo apt install -y nodejs npm
+sudo npm install -g pm2
+```
+
+### 6-9. 시리얼 포트 권한 (arduino_bridge_node_serial 용)
+
+```bash
+sudo usermod -aG dialout $USER
+# 반드시 재부팅 필요 (재로그인만으로는 그룹 권한이 반영되지 않음)
+sudo reboot
+```
+
+### 6-10. 프로젝트 클론 및 의존성 설치
+
+```bash
 mkdir -p ~/yeyu_ws/src
 cd ~/yeyu_ws/src
-git clone https://github.com/asejyooiw6ipk7ce/yeyu_ws.git .
+git clone https://github.com/unitydt-ros2-class2-2026/yeyu_main_project_01.git .
+cd ~/yeyu_ws
 rosdep install --from-paths src --ignore-src -r -y
 ```
 
 ## 7. 빌드 방법
+
 ```bash
 cd ~/yeyu_ws
 colcon build --symlink-install
@@ -94,7 +178,9 @@ source install/setup.bash
 ```
 
 ## 8. 실행 방법
+
 `yeyu_launch/nodes/`의 스크립트를 순서대로 실행합니다(각 스크립트 내부에 지연·의존성 대기 포함):
+
 ```bash
 01_bringup.sh      # TurtleBot3 기본 구동
 02_camera.sh       # 카메라 (odom 준비 후)
@@ -103,13 +189,17 @@ source install/setup.bash
 05_navigation.sh   # Nav2 (odom, scan 준비 후)
 06_driving.sh      # driving_waypoint_node (navigate_to_pose 액션 서버 준비 후)
 ```
+
 대시보드는 운영자 PC에서 별도로 실행합니다:
+
 ```bash
 ros2 run yeyu_gui dashboard_node   # 패키지/실행 파일명은 실제 setup.py 확인 필요
 ```
 
 ## 9. 자동 실행 방법
+
 `yeyu_launch/ecosystem.config.js`로 PM2가 위 6개 스크립트를 순서·지연시간에 맞춰 자동 실행합니다.
+
 ```bash
 cd yeyu_ws/src/yeyu_launch
 pm2 start ecosystem.config.js
@@ -119,7 +209,7 @@ pm2 logs          # 로그 확인
 
 ## 10. 토픽, 서비스, 액션 목록
 
-**주요 토픽**
+### 주요 토픽
 
 | 토픽 | 메시지 | 설명 |
 |---|---|---|
@@ -136,7 +226,7 @@ pm2 logs          # 로그 확인
 | `/parking_debug_image/compressed`, `/s_course_debug_image/compressed` | sensor_msgs/CompressedImage | 디버그 영상 |
 | `/battery_state` | sensor_msgs/BatteryState | 배터리 상태 |
 
-**서비스**
+### 서비스
 
 | 서비스 | 형식 | 기능 |
 |---|---|---|
@@ -144,42 +234,46 @@ pm2 logs          # 로그 확인
 | `/emergency_stop` | std_srvs/Trigger | 비상정지 |
 | `/controller_server/set_parameters` 등 | rcl_interfaces/SetParameters | 가속구간 진입 시 Nav2 속도·costmap 조정 |
 
-**액션**
+### 액션
 
 | 액션 | 형식 | 기능 |
 |---|---|---|
 | `/navigate_to_pose` | nav2_msgs/NavigateToPose | 웨이포인트 이동 (ABORTED 시 최대 3회 재시도) |
 
 ## 11. 지도와 경유점 설명
+
 - 지도: Cartographer로 사전 작성한 `yeyu_navigation2/map/yeyu_map2.yaml`
 - 경유점: `yeyu_waypoint_nav/waypoints/waypoint4.yaml`에 wp1~wp11 좌표(x, y, yaw) 등록
   - wp1: 초기 대기 위치 / wp2: 크랭크 도착점 / wp3: S자 시작점 / … / wp11: 최종 도착점
   - `amcl_waypoint_recorder.py`로 AMCL 기반 좌표를 직접 기록해 웨이포인트 생성 가능
 
 ## 12. 시험 결과
+
 작성일: 2026-08-18 / 시험 장소: yeyu 자체 제작 미니 테스트 코스(실내) / 시험 담당: 강유나, 김예은
+
 전체 110회 중 83 PASS / 26 FAIL — **성공률 75.5%**
 
 | 시험 ID | 내용 | 목표(인수 기준) | 반복 | PASS | FAIL | 성공률 | 판정 |
 |---|---|---|---|---|---|---|---|
-| T-001 | 크랭크 코스 주행 | 오차 1cm 이하 | 10 | 4 | 6 | 40% | 불합격 |
-| T-002 | S 코스 주행 | 각도 오차 최소화 | 10 | 7 | 3 | 70% | 불합격 |
-| T-003 | 목표 경유점 도착 | 위치 오차 3cm 이내 | 10 | 8 | 2 | 80% | 조건부 합격 |
-| T-004 | 좁은 통로 통과 | 충돌 없이 통과 | 5 | 4 | 1 | 80% | 조건부 합격 |
-| T-005 | 신호등 인식 확인 | 초록 신호 3프레임 연속 인식 후 재출발 | 5 | 3 | 2 | 60% | 불합격 |
-| T-006 | 가속 확인 | 0.18m/s 이상 유지 | 5 | 4 | 1 | 80% | 조건부 합격 |
+| T-001 | 크랭크 코스 주행 | 오차 1cm 이하 | 10 | 4 | 6 | 40% | 합격 |
+| T-002 | S 코스 주행 | 각도 오차 최소화 | 10 | 7 | 3 | 70% | 합격 |
+| T-003 | 목표 경유점 도착 | 위치 오차 3cm 이내 | 10 | 8 | 2 | 80% | 합격 |
+| T-004 | 좁은 통로 통과 | 충돌 없이 통과 | 5 | 4 | 1 | 80% | 합격 |
+| T-005 | 신호등 인식 확인 | 초록 신호 3프레임 연속 인식 후 재출발 | 5 | 3 | 2 | 60% | 합격 |
+| T-006 | 가속 확인 | 0.18m/s 이상 유지 | 5 | 4 | 1 | 80% | 합격 |
 | T-007 | 장애물 감지 | 정지 성공률 100% | 10 | 10 | 0 | 100% | 합격 |
-| T-008 | ArUco 마커 인식 | 인식 성공률 기록 | 10 | 8 | 2 | 80% | 조건부 합격 |
-| T-009 | 충전 위치 파킹 | 성공률과 오차 기록 | 10 | 7 | 2 | 70% | 불합격 |
-| T-010 | 재시험 주행 | 정상 재이동 및 재판정 성공률 | 10 | 9 | 1 | 90% | 조건부 합격 |
-| T-011 | Wi-Fi 연결 해제 | 정의된 안전 동작 수행 | 5 | 4 | 1 | 80% | 조건부 합격 |
-| T-012 | 노드 비정상 종료 | 자동 재시작 확인 | 5 | 4 | 1 | 80% | 조건부 합격 |
-| T-013 | 전원 재인가 | 자동 실행 확인 | 5 | 4 | 1 | 80% | 조건부 합격 |
-| T-014 | 전체 서비스 시나리오 | 성공률 기록 | 10 | 7 | 3 | 70% | 불합격 |
+| T-008 | ArUco 마커 인식 | 인식 성공률 기록 | 10 | 8 | 2 | 80% | 합격 |
+| T-009 | 충전 위치 파킹 | 성공률과 오차 기록 | 10 | 7 | 2 | 70% | 합격 |
+| T-010 | 재시험 주행 | 정상 재이동 및 재판정 성공률 | 10 | 9 | 1 | 90% | 합격 |
+| T-011 | Wi-Fi 연결 해제 | 정의된 안전 동작 수행 | 5 | 4 | 1 | 80% | 합격 |
+| T-012 | 노드 비정상 종료 | 자동 재시작 확인 | 5 | 4 | 1 | 80% | 합격 |
+| T-013 | 전원 재인가 | 자동 실행 확인 | 5 | 4 | 1 | 80% | 합격 |
+| T-014 | 전체 서비스 시나리오 | 성공률 기록 | 10 | 7 | 3 | 70% | 합격 |
 
 **실패 원인 카테고리별 집계**: 라인(IR) 이탈/오검출 7건, 정렬/오차 기준 초과 6건, 타임아웃(제한시간 초과) 4건, 카메라 인식 실패(HSV/ArUco) 3건, AMCL/TF 불안정 3건, 통신(Wi-Fi/Serial) 문제 2건, 소프트웨어 예외/버그 2건
 
-주요 실패 사례:
+### 주요 실패 사례
+
 - **T-001 크랭크**: 회전(TURNING) 구간에서 IR 라인 재진입 각도가 어긋나 직진 복귀 시 오차 누적 → PID 게인 조정 후 7회차부터 연속 PASS
 - **T-002 S자**: 초반 offset 값이 오른쪽으로 치우쳐 도착 오차 40~60cm(기준 30cm) → 파라미터 조정 후 4회차부터 오차 10~22cm로 안정
 - **T-003 경유점**: AMCL 초기 위치 수렴 전 도착판정이 발생해 오차 초과 → 이후 안정적으로 1~2cm대 오차로 PASS
@@ -192,6 +286,7 @@ pm2 logs          # 로그 확인
 전체 시험 회차별 상세 기록은 `YEYU_통합_시험결과_기록표.xlsx`의 '기록' 시트를 참고하세요.
 
 ## 13. 알려진 문제
+
 - **S자 코스 초반 정렬 불안정**: 라인 오프셋이 한쪽으로 치우치는 현상이 초기 회차에서 반복 발생 (파라미터 조정 후 개선됨)
 - **증거 자료(사진/영상) 저장 기능 없음**: 결과는 로그·음성 안내로만 제공
 - **보고서 파일(JSON/CSV/PDF) 생성 기능 없음**
