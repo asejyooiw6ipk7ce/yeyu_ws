@@ -1,13 +1,13 @@
 frame_id: map
 initial_pose:
-  x: -2.73
-  y: 1.75
-  yaw: 0.1
+  x: -2.853
+  y: 1.723
+  yaw: 0.235
 waypoints:
 - name: wp1
-  x: -2.73
-  y: 1.75
-  yaw: 0.1
+  x: -2.853
+  y: 1.723
+  yaw: 0.235
 - name: wp2 #크랭크 도착점
   x: 0.14
   y: 0.5    # 0.083 -(더 위로 땡김)-> 0.5
